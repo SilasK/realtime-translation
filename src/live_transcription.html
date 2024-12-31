@@ -101,11 +101,11 @@
   <div id="transcriptions"></div>
 
   <script>
-    let isRecording = false,
-      websocket,
-      recorder,
-      chunkDuration = 1000,
-      websocketUrl = "ws://localhost:8000/asr";
+    let isRecording = false;
+    let websocket = null;
+    let recorder = null;
+    let chunkDuration = 1000;
+    let websocketUrl = "ws://localhost:8000/asr";
 
     // Tracks whether the user voluntarily closed the WebSocket
     let userClosing = false;
@@ -137,46 +137,56 @@
       statusText.textContent = "WebSocket URL updated. Ready to connect.";
     });
 
+    /**
+     * Opens webSocket connection. 
+     * returns a Promise that resolves when the connection is open.
+     * rejects if there was an error.
+     */
     function setupWebSocket() {
-      try {
-        websocket = new WebSocket(websocketUrl);
-      } catch (error) {
-        statusText.textContent =
-          "Invalid WebSocket URL. Please check the URL and try again.";
-        throw error;
-      }
-
-      websocket.onopen = () => {
-        statusText.textContent = "Connected to server";
-      };
-
-      websocket.onclose = (event) => {
-        if (userClosing) {
-          statusText.textContent = "WebSocket closed by user.";
-        } else {
-          statusText.textContent = "Disconnected from server (unexpected).";
+      return new Promise((resolve, reject) => {
+        try {
+          websocket = new WebSocket(websocketUrl);
+        } catch (error) {
+          statusText.textContent =
+            "Invalid WebSocket URL. Please check the URL and try again.";
+          reject(error);
+          return;
         }
-        userClosing = false;
-      };
 
-      websocket.onerror = () => {
-        statusText.textContent = "Error connecting to WebSocket";
-        stopRecording();
-      };
+        websocket.onopen = () => {
+          statusText.textContent = "Connected to server";
+          resolve();
+        };
 
-      websocket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        const { transcription, buffer } = data;
+        websocket.onclose = (event) => {
+          // If we manually closed it, we say so
+          if (userClosing) {
+            statusText.textContent = "WebSocket closed by user.";
+          } else {
+            statusText.textContent = "Disconnected from the websocket server. If this is the first launch, the model may be downloading in the backend. Check the API logs for more information.";
+          }
+          userClosing = false;
+        };
 
-        // Update confirmed transcription
-        fullTranscription += transcription;
+        websocket.onerror = () => {
+          statusText.textContent = "Error connecting to WebSocket";
+          reject(new Error("Error connecting to WebSocket"));
+        };
 
-        // Update the transcription display
-        transcriptionsDiv.innerHTML = `
-          <span class="transcription">${fullTranscription}</span>
-          <span class="buffer">${buffer}</span>
-        `;
-      };
+        websocket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          const { transcription, buffer } = data;
+
+          // Update confirmed transcription
+          fullTranscription += transcription;
+
+          // Update the transcription display
+          transcriptionsDiv.innerHTML = `
+            <span class="transcription">${fullTranscription}</span>
+            <span class="buffer">${buffer}</span>
+          `;
+        };
+      });
     }
 
     async function startRecording() {
@@ -200,12 +210,18 @@
     function stopRecording() {
       userClosing = true;
 
-      recorder?.stop();
-      recorder = null;
+      // Stop the recorder if it exists
+      if (recorder) {
+        recorder.stop();
+        recorder = null;
+      }
       isRecording = false;
 
-      websocket?.close();
-      websocket = null;
+      // Close the websocket if it exists
+      if (websocket) {
+        websocket.close();
+        websocket = null;
+      }
 
       updateUI();
     }
@@ -216,12 +232,12 @@
         transcriptionsDiv.innerHTML = "";
 
         try {
-          setupWebSocket();
+          await setupWebSocket();
+          await startRecording();
         } catch (err) {
-          return;
+          statusText.textContent =
+            "Could not connect to WebSocket or access mic. Recording aborted.";
         }
-
-        await startRecording();
       } else {
         stopRecording();
       }
