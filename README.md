@@ -17,7 +17,7 @@ This project extends the [Whisper Streaming](https://github.com/ufal/whisper_str
 ##  Code Origins
 
 This project reuses and extends code from the original Whisper Streaming repository:
-- whisper_online.py: Contains code from whisper_streaming with the addition of the **MLX Whisper** backend for Apple Silicon, which is not present in the original repository.
+- whisper_online.py: Contains code from whisper_streaming
 - silero_vad_iterator.py: Originally from the Silero VAD repository, included in the whisper_streaming project.
 
 ## Installation
