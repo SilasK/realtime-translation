@@ -9,7 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from whisper_online import asr_factory, add_shared_args
+from whisper_online import backend_factory, online_factory, add_shared_args
 
 app = FastAPI()
 app.add_middleware(
@@ -40,7 +40,7 @@ parser.add_argument(
 add_shared_args(parser)
 args = parser.parse_args()
 
-asr, online = asr_factory(args)
+asr, tokenizer = backend_factory(args)
 
 # Load demo HTML for the root endpoint
 with open("src/live_transcription.html", "r") as f:
@@ -85,6 +85,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
     ffmpeg_process = await start_ffmpeg_decoder()
     pcm_buffer = bytearray()
+    print("Loading online.")
+    online = online_factory(args, asr, tokenizer)
+    print("Online loaded.")
 
     # Continuously read decoded PCM from ffmpeg stdout in a background task
     async def ffmpeg_stdout_reader():

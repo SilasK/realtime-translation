@@ -920,11 +920,7 @@ def add_shared_args(parser):
         default="DEBUG",
     )
 
-
-def asr_factory(args, logfile=sys.stderr):
-    """
-    Creates and configures an ASR and ASR Online instance based on the specified backend and arguments.
-    """
+def backend_factory(args):
     backend = args.backend
     if backend == "openai-api":
         logger.debug("Using OpenAI API.")
@@ -967,10 +963,10 @@ def asr_factory(args, logfile=sys.stderr):
         tokenizer = create_tokenizer(tgt_language)
     else:
         tokenizer = None
+    return asr, tokenizer
 
-    # Create the OnlineASRProcessor
+def online_factory(args, asr, tokenizer, logfile=sys.stderr):
     if args.vac:
-
         online = VACOnlineASRProcessor(
             args.min_chunk_size,
             asr,
@@ -985,9 +981,15 @@ def asr_factory(args, logfile=sys.stderr):
             logfile=logfile,
             buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec),
         )
-
+    return online
+  
+def asr_factory(args, logfile=sys.stderr):
+    """
+    Creates and configures an ASR and ASR Online instance based on the specified backend and arguments.
+    """
+    asr, tokenizer = backend_factory(args)
+    online = online_factory(args, asr, tokenizer, logfile=logfile)
     return asr, online
-
 
 def set_logging(args, logger, other="_server"):
     logging.basicConfig(format="%(levelname)s\t%(message)s")  # format='%(name)s
