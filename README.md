@@ -12,12 +12,12 @@ This project extends the [Whisper Streaming](https://github.com/ufal/whisper_str
 
 5. **MLX Whisper backend**: Integrates the alternative backend option MLX Whisper, optimized for efficient speech recognition on Apple silicon.
 
-![Demo Screenshot](src/demo.png)
+![Demo Screenshot](src/web/demo.png)
 
 ##  Code Origins
 
 This project reuses and extends code from the original Whisper Streaming repository:
-- whisper_online.py: Contains code from whisper_streaming
+- whisper_online.py, backends.py and online_asr.py: Contains code from whisper_streaming
 - silero_vad_iterator.py: Originally from the Silero VAD repository, included in the whisper_streaming project.
 
 ## Installation

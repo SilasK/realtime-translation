@@ -43,7 +43,7 @@ args = parser.parse_args()
 asr, tokenizer = backend_factory(args)
 
 # Load demo HTML for the root endpoint
-with open("src/live_transcription.html", "r", encoding="utf-8") as f:
+with open("src/web/live_transcription.html", "r", encoding="utf-8") as f:
     html = f.read()
 
 
