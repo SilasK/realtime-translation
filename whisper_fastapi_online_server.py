@@ -173,6 +173,8 @@ async def websocket_endpoint(websocket: WebSocket):
             pass
 
         ffmpeg_process.wait()
+        del online
+
 
 
 if __name__ == "__main__":
