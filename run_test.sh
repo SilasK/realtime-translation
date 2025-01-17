@@ -1,4 +1,5 @@
-python whisper_online.py \
+#python whisper_online.py \
+python translation_online.py \
 --model large-v3-turbo \
 --lan fr \
 --task transcribe \
@@ -6,4 +7,4 @@ python whisper_online.py \
 --backend mlx-whisper \
 --buffer_trimming sentence \
 --audio_path preche.wav \
-$@
+$argv

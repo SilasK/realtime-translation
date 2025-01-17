@@ -15,6 +15,7 @@ fastapi = ">=0.115.6,<0.116"
 ffmpeg-python = ">=0.2.0,<0.3"
 mosestokenizer = "*"
 uvicorn = "*" # for server
+sentencepiece = ">=0.2.0,<0.3"
 
 
 
