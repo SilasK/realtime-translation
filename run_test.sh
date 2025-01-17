@@ -1,9 +1,9 @@
-python whisper_fastapi_online_server.py \
+python whisper_online.py \
 --model large-v3-turbo \
 --lan fr \
 --task transcribe \
 --vac \
 --backend mlx-whisper \
 --buffer_trimming sentence \
---warmup-file samples_jfk.wav \
+--audio_path preche.wav \
 $@
