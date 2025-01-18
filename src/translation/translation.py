@@ -15,6 +15,7 @@ from transformers import M2M100Config, M2M100ForConditionalGeneration, M2M100Tok
 
 
 import torch
+import signal
 def define_torch_device():
     if torch.cuda.is_available():
         return "cuda"
@@ -102,6 +103,13 @@ class OnlineTranslator():
             daemon=True  # Make thread exit when main program exits
         )
         self.translation_thread.start()
+        
+        # Set up signal handler for main thread
+        try:
+            signal.signal(signal.SIGINT, lambda s, f: self.stop())
+        except (ImportError, ValueError):
+            # Handle cases where signal isn't available
+            pass
 
     def _translation_worker(self):
         while self.should_stop is False:
@@ -143,7 +151,7 @@ class OnlineTranslator():
         
 
 
-
+# TODO: keybord interupt handling. write stoping but wait until all threads are stopped.
    # TODO: make a central queue for all model executions 
 # TODO: pipline start function
 
@@ -178,7 +186,7 @@ class TranslationPipeline():
 
             self.targets.append(OnlineTranslator(self.model,tokenizer,self.src_lang,lang,output_file=output_file))
 
-        logger.debug("Initialized multilanguage translaton pipeline")
+        logger.debug("Initialized multi-language translation pipeline")
 
 
 

@@ -22,13 +22,13 @@ def load_audio(fname):
 
 
 
-def set_logging(args, logger, other="_server"):
+def set_logging(args, main_logger, other_loggers= ["src.translation.translation"]):
     logging.basicConfig(format="%(levelname)s\t%(message)s")  # format='%(name)s
-    logger.setLevel(args.log_level)
-    logging.getLogger("whisper_online" + other).setLevel(args.log_level)
+    main_logger.setLevel(args.log_level)
+    for other in other_loggers:
+        logging.getLogger(other).setLevel(args.log_level)
 
 
-#    logging.getLogger("whisper_online_server").setLevel(args.log_level)
 
 from whisper_online import add_shared_args, asr_factory,load_audio_chunk
 
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # reset to store stderr to different file stream, e.g. open(os.devnull,"w")
-    logfile = sys.stderr
+    logfile = None # sys.stderr
 
     if args.offline and args.comp_unaware:
         logger.error(
@@ -72,9 +72,6 @@ if __name__ == "__main__":
         )
         sys.exit(1)
 
-    #    if args.log_level:
-    #        logging.basicConfig(format='whisper-%(levelname)s:%(name)s: %(message)s',
-    #                            level=getattr(logging, args.log_level))
 
     set_logging(args, logger)
 
