@@ -102,14 +102,13 @@ class OnlineTranslator():
             target=self._translation_worker,
             daemon=True  # Make thread exit when main program exits
         )
-        self.translation_thread.start()
+
         
         # Set up signal handler for main thread
-        try:
-            signal.signal(signal.SIGINT, lambda s, f: self.stop())
-        except (ImportError, ValueError):
-            # Handle cases where signal isn't available
-            pass
+
+        signal.signal(signal.SIGINT, lambda s, f: self.stop())
+
+        self.translation_thread.start()
 
     def _translation_worker(self):
         while self.should_stop is False:
@@ -163,7 +162,8 @@ class TranslationPipeline():
 
     def __init__(self,src_lang,target_languages: List[str],output_folder: Optional[Path | str ] = None):
 
-    
+        signal.signal(signal.SIGINT, lambda s, f: self.stop())
+
         # Load model
         logger.info("Loading model 'facebook/m2m100_418M'")
         self.model = M2M100ForConditionalGeneration.from_pretrained("facebook/m2m100_418M").to(TORCH_DEVICE)
