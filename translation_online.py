@@ -96,8 +96,7 @@ if __name__ == "__main__":
 
     translation_pipeline = TranslationPipeline("fr",["en","uk","de"],#output_folder=translation_output_folder
                                    )
-
-
+    translation_pipeline.start()
 
     ###
 

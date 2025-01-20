@@ -8,6 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +24,9 @@ def define_torch_device():
         return "mps"
     else:
         return "cpu"
+    
 
+TRANSLATION_MODEL = "facebook/m2m100_418M"
 TORCH_DEVICE = define_torch_device()
 logger.info(f"Using torch device: {TORCH_DEVICE}")
 
@@ -51,9 +54,17 @@ class TextOutputStreamBase(ABC):
     def stop(self):
         pass
 
-class ConsoleOutputStream(TextOutputStreamBase):        
+
+
+
+class ConsoleOutputStream(TextOutputStreamBase):
+    def __init__(self, language: str,console_color: int = 93):
+        super().__init__(language)
+        self.color = console_color
+
+
     def write(self, translated_text: str):
-        print(f"\033[93m[{self.language}]\033[0m: {translated_text}")
+        print(f"\033[{self.color}m[{self.language}]\033[0m: {translated_text}")
 
 class FileOutputStream(TextOutputStreamBase):
     def __init__(self, file_path: Path | str, language: str):
@@ -81,9 +92,12 @@ class FileOutputStream(TextOutputStreamBase):
 
 class OnlineTranslator():
     
-    def __init__(self,model,tokenizer,src_lang, tgt_lang, output_file: Optional[ Path | str] = None):
-        self.model = model
-        self.tokenizer = tokenizer
+    def __init__(self, model,src_lang,tgt_lang,
+                 output_file: Optional[Path | str] = None,
+                 **inference_ksw):
+        
+        self.model = model  # Just store the reference to the model
+    
         self.src_lang = src_lang
         self.tgt_lang = tgt_lang
 
@@ -92,67 +106,48 @@ class OnlineTranslator():
         else:
             self.output_stream = FileOutputStream(output_file,tgt_lang)
 
-        self.should_stop = False
 
-        self.translation_queue = queue.Queue()
-        self._forced_bos_token_id=self.tokenizer.get_lang_id(self.tgt_lang)
+        self.tokenizer = M2M100Tokenizer.from_pretrained(TRANSLATION_MODEL, src_lang=src_lang,tgt_lang=tgt_lang)
 
-        # Create and start translation thread
-        self.translation_thread = threading.Thread(
-            target=self._translation_worker,
-            daemon=True  # Make thread exit when main program exits
-        )
+        self.inference_kwargs = inference_ksw
+        self.inference_kwargs.setdefault("forced_bos_token_id", self.tokenizer.get_lang_id(self.tgt_lang))
 
-        
-        # Set up signal handler for main thread
 
-        signal.signal(signal.SIGINT, lambda s, f: self.stop())
 
-        self.translation_thread.start()
+    def tokenize_text(self, text: str) -> torch.Tensor:
+        return self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
 
-    def _translation_worker(self):
-        while self.should_stop is False:
-            try:
-                text = self.translation_queue.get()
-                if text is None:  # Sentinel value to stop the thread
-                    break
-                    
-                translation = self._translate(text)
-                self.output_stream.write(translation)
-                
-            except queue.Empty:
-                continue
-            except Exception as e:
-                logger.error(f"Translation worker error: {e}")
-            finally:
-                self.translation_queue.task_done()
 
-    def stop(self):
-        """Gracefully stop the translation thread"""
-        self.should_stop = True
-        self.translation_thread.join()
-        self.output_stream.stop()
-
-    def put_text(self,text:str):
-        self.translation_queue.put(text)
-
-    def _translate(self,src_text: str) -> str:
+    def translate_tokenized_text(self, tokenized_text: torch.Tensor) -> str:
         try:
-            encoded_text = self.tokenizer(src_text, return_tensors="pt").to(TORCH_DEVICE)
-            generated_tokens = self.model.generate(**encoded_text, forced_bos_token_id=self._forced_bos_token_id)
+            logger.debug(f"Translating text to {self.tgt_lang}")
+            generated_tokens = self.model.generate(**tokenized_text,
+                                                    **self.inference_kwargs)
+            
             return self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
 
             
 
         except Exception as e:
-            logger.error(f"Error translating to {self.tgt_lang}\nsource_text: {src_text}\nError:\n\n{e}")
-            return "[" + src_text + "]" # Return the original text surrounded by brackets to indicate an error
+            logger.error(f"Error translating to {self.tgt_lang}\nError:\n\n{e}")
+            return "[ Translation Error ]" 
         
+    def translate_to_output(self, tokenized_text: torch.Tensor) -> None:
+        translation = self.translate_tokenized_text(tokenized_text)
+
+        self.output_stream.write(translation)
+
+        
+
+    def stop(self):
+        self.output_stream.stop()
+
+
 
 
 # TODO: keybord interupt handling. write stoping but wait until all threads are stopped.
    # TODO: make a central queue for all model executions 
-# TODO: pipline start function
+# TODO: pipeline start function
 
 
         
@@ -165,44 +160,108 @@ class TranslationPipeline():
         signal.signal(signal.SIGINT, lambda s, f: self.stop())
 
         # Load model
-        logger.info("Loading model 'facebook/m2m100_418M'")
-        self.model = M2M100ForConditionalGeneration.from_pretrained("facebook/m2m100_418M").to(TORCH_DEVICE)
+        
+        logger.info(f"Loading model '{TRANSLATION_MODEL}'")
+        self.model = M2M100ForConditionalGeneration.from_pretrained(TRANSLATION_MODEL).to(TORCH_DEVICE)
 
+        # Self tokenizer no target-lang
         self.src_lang = src_lang
-        self.targets=[]
+        self.tokenizer = M2M100Tokenizer.from_pretrained(TRANSLATION_MODEL, src_lang=self.src_lang)
 
+        # Create Output folder if specified
         if output_folder is not None:
             output_folder = Path(output_folder)
             output_folder.mkdir(parents=True, exist_ok=True)
 
-        output_file = None
+            self.original_output_stream = FileOutputStream(output_folder / f"original_{src_lang}.md",src_lang)
+        
+        else:
+            output_file = None
+            self.original_output_stream = ConsoleOutputStream(src_lang,console_color=36)
+
+        self.translators = []
         for lang in target_languages:
-            tokenizer = M2M100Tokenizer.from_pretrained("facebook/m2m100_418M", src_lang=self.src_lang, tgt_lang=lang)
+ 
 
             if output_folder is not None:
                 output_file = output_folder / f"translation_{lang}.md"
 
                 
 
-            self.targets.append(OnlineTranslator(self.model,tokenizer,self.src_lang,lang,output_file=output_file))
+            self.translators.append(OnlineTranslator(self.model,
+                                                    src_lang=src_lang,
+                                                 tgt_lang=lang,
+                                                 output_file=output_file
+                                                 ))
+
+        # Set up translation queue
+        self.translation_queue = queue.Queue()
+
+
+        # set up keybord interrupt handling
+        # signal.signal(signal.SIGINT, lambda s, f: self.stop())
 
         logger.debug("Initialized multi-language translation pipeline")
 
+    def __del__(self):
+        self.stop()
+        
 
+
+    def _translation_thread(self):
+        while self.should_run:
+            try:
+                T, tokenized_text = self.translation_queue.get(timeout=1)
+            except queue.Empty:
+                continue
+
+            T.translate_to_output(tokenized_text)
+
+
+
+    def start(self):
+        # Start one thread for all translators as they are using the same model
+        logger.debug("Starting translation queue")
+        self.should_run = True
+        self.translation_thread = threading.Thread(target=self._translation_thread)
+        self.translation_thread.start()
+
+
+    def stop(self):
+
+        if not self.should_run:
+            logger.warning("You already asked to stop the translation pipeline")
+
+        else:
+
+            logger.info("Stopping translation pipeline. Waiting for threads to finish...")
+
+            self.original_output_stream.stop()
+            self.should_run = False
+            self.translation_thread.join()
+
+            for T in self.translators:
+                T.stop()
+
+            
+
+            logger.info("Translation pipeline stopped")
+            
 
 
     def put_text(self,text:str):
-        for target in self.targets:
-            target.put_text(text)
 
-    def stop(self):
-        """Stop all translation threads"""
-        for translator in self.targets:
-            translator.stop()
+        self.original_output_stream.write(text)
 
-        logger.info("Translation pipeline stopped")
+        tokenized_text = self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
 
- 
+        for T in self.translators:
+            self.translation_queue.put((T,tokenized_text))
+
+        
+
+
+
 
 if __name__ == "__main__":
 
@@ -217,6 +276,7 @@ if __name__ == "__main__":
     ]
 
     pipeline = TranslationPipeline("fr",["en","uk","de"])
+    pipeline.start()
 
     for sentence in Test_sentences:
         pipeline.put_text(sentence)
@@ -227,7 +287,7 @@ if __name__ == "__main__":
     temp_folder= Path("temp")
 
     pipeline = TranslationPipeline("fr",["en","uk","de"],output_folder=temp_folder)
-
+    pipeline.start()
     
 
     for sentence in Test_sentences:
@@ -251,12 +311,14 @@ if __name__ == "__main__":
     # Test with interruption
 
     pipeline = TranslationPipeline("fr",["en","uk","de"])
+    pipeline.start()
     try:
         pipeline.put_text("Une phrase avant l'interruption.")
         logger.debug("Waiting before interruption")
         time.sleep(2)
         KeyboardInterrupt()
     except KeyboardInterrupt:
+        logger.debug("Keyboard interruption")
         pass
 
 
