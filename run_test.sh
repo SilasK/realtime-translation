@@ -5,9 +5,10 @@ python translation_online.py \
 --task transcribe \
 --backend mlx-whisper \
 --buffer_trimming sentence \
---min-chunk-size 2\
- --buffer_trimming_sec 3 \
+--min-chunk-size 3\
+ --buffer_trimming_sec 5 \
 --audio_path preche.wav \
+--vac \
+--vac-chunk-size 2 \
 $argv
 
-#--vac \
