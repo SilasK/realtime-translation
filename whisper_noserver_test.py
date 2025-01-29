@@ -8,6 +8,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+SAMPLING_RATE = 16000
+
 from src.whisper_streaming.whisper_online import *
 
 @lru_cache(10**6)
@@ -69,7 +71,7 @@ if __name__ == "__main__":
 
     audio_path = args.audio_path
 
-    SAMPLING_RATE = 16000
+
     duration = len(load_audio(audio_path)) / SAMPLING_RATE
     logger.info("Audio duration is: %2.2f seconds" % duration)
 
