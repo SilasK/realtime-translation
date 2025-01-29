@@ -5,9 +5,16 @@ import librosa
 from functools import lru_cache
 import time
 import logging
+import threading
+import sounddevice as sd
+from pathlib import Path
 
+SAMPLING_RATE = 16000
 logger = logging.getLogger(__name__)
 
+
+print(sd.query_devices())
+print(sd.default.device)
 
 from src.translation.translation import TranslationPipeline
 from src.whisper_streaming.whisper_online import *
@@ -23,6 +30,31 @@ def load_audio_chunk(fname, beg, end):
     beg_s = int(beg * 16000)
     end_s = int(end * 16000)
     return audio[beg_s:end_s]
+
+
+def play_audio(audio_path, beg=0):
+    """
+    Play audio from the specified path starting at the given time.
+
+    Args:
+        audio_path (str): Path to the audio file.
+        beg (float): Start time in seconds.
+
+    Example:
+        >>> play_audio('path/to/audio.wav', 5)
+    """
+    try:
+        audio = load_audio(audio_path)
+        start_sample = int(beg * SAMPLING_RATE)
+        if start_sample >= len(audio):
+            logger.error("Start time exceeds audio length.")
+            return
+        logger.debug(f"Playing audio from {audio_path} starting at {beg} seconds.")
+        sd.play(audio[start_sample:], SAMPLING_RATE)
+        sd.wait()  # Wait until playback is finished
+    except Exception as e:
+        logger.error(f"Error playing audio: {e}")
+
 
 if __name__ == "__main__":
 
@@ -68,9 +100,11 @@ if __name__ == "__main__":
 
     audio_path = args.audio_path
 
-    SAMPLING_RATE = 16000
+
     duration = len(load_audio(audio_path)) / SAMPLING_RATE
     logger.info("Audio duration is: %2.2f seconds" % duration)
+
+    play_audio(audio_path, 0)
 
     asr, online = asr_factory(args, logfile=logfile)
     if args.vac:
@@ -81,10 +115,11 @@ if __name__ == "__main__":
 
 ## Load translater
 
-    #translation_output_folder= Path("translations")
-    #translation_output_folder.mkdir(exist_ok=True, parents=True)
+    translation_output_folder= Path("translations")
+    translation_output_folder.mkdir(exist_ok=True, parents=True)
 
-    translation_pipeline = TranslationPipeline("fr",["en","uk","de"],#output_folder=translation_output_folder
+    translation_pipeline = TranslationPipeline("fr",["en","uk","de"],
+                                               output_folder=translation_output_folder
                                    )
     translation_pipeline.start()
 
@@ -164,6 +199,10 @@ if __name__ == "__main__":
         now = duration
 
     else:  # online = simultaneous mode
+
+        audio_thread = threading.Thread(target=play_audio,args=(audio_path,beg),daemon=True)
+        audio_thread.start()
+
         end = 0
         while True:
             now = time.time() - start
