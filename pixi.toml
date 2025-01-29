@@ -16,6 +16,7 @@ ffmpeg-python = ">=0.2.0,<0.3"
 mosestokenizer = "*"
 uvicorn = "*" # for server
 sentencepiece = ">=0.2.0,<0.3"
+flask = ">=3.1.0,<4"
 
 
 
