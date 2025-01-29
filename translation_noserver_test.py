@@ -13,24 +13,26 @@ SAMPLING_RATE = 16000
 logger = logging.getLogger(__name__)
 
 
-print(sd.query_devices())
-print(sd.default.device)
-
 from src.translation.translation import TranslationPipeline
 from src.whisper_streaming.whisper_online import *
 
 @lru_cache(10**6)
-def load_audio(fname):
-    a, _ = librosa.load(fname, sr=16000, dtype=np.float32)
-    return a
+def load_audio(fname, target_sr=SAMPLING_RATE):
+    """
+    Load an audio file and resample it to the target sampling rate.
 
+    Args:
+        fname (str): Path to the audio file.
+        target_sr (int): Target sampling rate.
 
-def load_audio_chunk(fname, beg, end):
-    audio = load_audio(fname)
-    beg_s = int(beg * 16000)
-    end_s = int(end * 16000)
-    return audio[beg_s:end_s]
-
+    Returns:
+        np.ndarray: Audio data.
+    """
+    audio, sr_native = librosa.load(fname, sr=None, dtype=np.float32)
+    if sr_native != target_sr:
+        logger.debug(f"Resampling from {sr_native} Hz to {target_sr} Hz.")
+        audio = librosa.resample(audio, orig_sr=sr_native, target_sr=target_sr)
+    return audio
 
 def play_audio(audio_path, beg=0):
     """
@@ -45,15 +47,26 @@ def play_audio(audio_path, beg=0):
     """
     try:
         audio = load_audio(audio_path)
+        
         start_sample = int(beg * SAMPLING_RATE)
         if start_sample >= len(audio):
             logger.error("Start time exceeds audio length.")
             return
         logger.debug(f"Playing audio from {audio_path} starting at {beg} seconds.")
+        
+        
         sd.play(audio[start_sample:], SAMPLING_RATE)
         sd.wait()  # Wait until playback is finished
     except Exception as e:
         logger.error(f"Error playing audio: {e}")
+
+
+def load_audio_chunk(fname, beg, end):
+    audio = load_audio(fname)
+    beg_s = int(beg * 16000)
+    end_s = int(end * 16000)
+    return audio[beg_s:end_s]
+
 
 
 if __name__ == "__main__":
@@ -104,7 +117,7 @@ if __name__ == "__main__":
     duration = len(load_audio(audio_path)) / SAMPLING_RATE
     logger.info("Audio duration is: %2.2f seconds" % duration)
 
-    play_audio(audio_path, 0)
+
 
     asr, online = asr_factory(args, logfile=logfile)
     if args.vac:

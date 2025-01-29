@@ -231,6 +231,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/c5/1b/f0e4d13e6adf866ce9b069e191f303a30ab1277e037037a365c3aad5cc9c/regex-2024.11.6-cp311-cp311-macosx_11_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/24/84/e9d3ff57ae50dd0028f301c9ee064e5087fe8b00e55696677a0413c377a7/safetensors-0.5.2-cp38-abi3-macosx_11_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/f4/5f/a3ec074e67b5dcce2de290bb5b2edb60f78c9304d86485dc1570bca22c2d/skops-0.11.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6f/f6/6703fe7cf3d7b7279040c792aeec6334e7305956aba4a80f23e62c8fdc44/sounddevice-0.5.1-py3-none-macosx_10_6_x86_64.macosx_10_6_universal2.whl
       - pypi: https://files.pythonhosted.org/packages/b2/fe/81695a1aa331a842b582453b605175f419fe8540355886031328089d840a/sympy-1.13.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/40/44/4a5f08c96eb108af5cb50b41f76142f0afa346dfa99d5296fe7202a11854/tabulate-0.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/8c/f8/f0101d98d661b34534769c3818f5af631e59c36ac6d07268fbfc89e539ce/tiktoken-0.8.0-cp311-cp311-macosx_11_0_arm64.whl
@@ -1965,8 +1966,6 @@ packages:
   - libabseil >=20240722.0,<20240723.0a0
   - libcxx >=18
   - libprotobuf >=5.28.3,<5.28.4.0a0
-  arch: arm64
-  platform: osx
   license: Apache-2.0
   license_family: Apache
   purls: []
@@ -2992,8 +2991,6 @@ packages:
   - python_abi 3.11.* *_cp311
   - sentencepiece-python 0.2.0 py311hb1a73f2_10
   - sentencepiece-spm 0.2.0 he13a0af_10
-  arch: arm64
-  platform: osx
   license: Apache-2.0
   license_family: Apache
   purls: []
@@ -3010,8 +3007,6 @@ packages:
   - python >=3.11,<3.12.0a0
   - python >=3.11,<3.12.0a0 *_cpython
   - python_abi 3.11.* *_cp311
-  arch: arm64
-  platform: osx
   license: Apache-2.0
   license_family: Apache
   purls:
@@ -3028,8 +3023,6 @@ packages:
   - libcxx >=18
   - libprotobuf >=5.28.3,<5.28.4.0a0
   - libsentencepiece 0.2.0 he13a0af_10
-  arch: arm64
-  platform: osx
   license: Apache-2.0
   license_family: Apache
   purls: []
@@ -3101,6 +3094,14 @@ packages:
   - pkg:pypi/sniffio?source=hash-mapping
   size: 15019
   timestamp: 1733244175724
+- pypi: https://files.pythonhosted.org/packages/6f/f6/6703fe7cf3d7b7279040c792aeec6334e7305956aba4a80f23e62c8fdc44/sounddevice-0.5.1-py3-none-macosx_10_6_x86_64.macosx_10_6_universal2.whl
+  name: sounddevice
+  version: 0.5.1
+  sha256: d16cb23d92322526a86a9490c427bf8d49e273d9ccc0bd096feecd229cde6031
+  requires_dist:
+  - cffi>=1.0
+  - numpy ; extra == 'numpy'
+  requires_python: '>=3.7'
 - conda: https://conda.anaconda.org/conda-forge/osx-arm64/soxr-0.1.3-h5008568_3.conda
   sha256: b3028eab2df50ebfbfbf7e21074d4862a8aa12867272ae363c0b415c6119ebe7
   md5: 02fbc2cdd53ed18f8a4dbf36125d8b7d
