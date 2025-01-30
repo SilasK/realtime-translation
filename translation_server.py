@@ -7,8 +7,12 @@ import threading
 import argparse
 import yaml
 from pathlib import Path
+import signal
+
 
 from src.translation.audio import load_audio, play_audio, load_audio_chunk
+from src.translation.audio import FileAudioSource, MicrophoneAudioSource
+
 from src.translation.translation import TranslationPipeline
 from src.whisper_streaming.whisper_online import asr_factory, set_logging
 
@@ -21,35 +25,87 @@ def load_config(config_file: str) -> argparse.Namespace:
     return argparse.Namespace(**config)
 
 
+def warmup_asr(asr, warmup_file):
+    if warmup_file is not None:
+        logger.info(f"Warming up ASR with {warmup_file}")
+        audio = load_audio(warmup_file)
+        asr.transcribe(audio)
+        logger.info("ASR warmed up.")
 
 
-def output_transcript(o, start, translation_pipeline, now=None):
+
+def log_transcript(o, start, now=None):
     if now is None:
         now = time.time() - start
     if o[0] is not None:
         log_string = f"{now*1000:1.0f}, {o[0]*1000:1.0f}-{o[1]*1000:1.0f} ({(now-o[1]):+1.0f}s): {o[2]}"
         logger.debug(log_string)
+        
+
+
+def process_audio(audio_source, transcriber,translation_pipeline,min_chunk):
+    running = True
+    def signal_handler(signum, frame):
+        nonlocal running
+        logger.info("Stopping audio processing...")
+        running = False
+
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    try:
+
+
+        logger.info("Ready to process audio.")
+        audio_source.start()
+        
+
+        
+        start = time.time()
+        while running:
+            chunk = audio_source.get_chunk(min_chunk)
+            if chunk is None:
+                break
+                
+            transcriber.insert_audio_chunk(chunk)
+            try:
+                o = transcriber.process_iter()
+                log_transcript(o, start)
+                translation_pipeline.put_text(o[2])
+            except AssertionError as e:
+                logger.error(f"Assertion error: {e}")
+            
+            now = time.time() - start
+            logger.debug(f"Processed chunk at {now:.2f}s")
+            
+    except Exception as e:
+        logger.error(f"Error during processing: {e}")
+    finally:
+        audio_source.stop()
+        o = transcriber.finish()
+        log_transcript(o, start)
         translation_pipeline.put_text(o[2])
+        translation_pipeline.stop()
+
 
 def main():
     config_file = "translation_server_config.yaml"
+
     args = load_config(config_file)
     set_logging(args, logger, others=["src.whisper_streaming.online_asr", "src.translation.translation", "src.translation.audio"])
+
+
     if args.input_audio is None or args.input_audio.lower() == "mic":
-        raise NotImplementedError("Microphone input is not implemented yet")
+        audio_source = MicrophoneAudioSource()
     else:
-        audio_path = Path(args.input_audio)
-        if not audio_path.exists():
-            raise FileNotFoundError(f"Audio file {audio_path} does not exist")
+        audio_source = FileAudioSource(args.input_audio)
     
 
-
-        duration = len(load_audio(audio_path)) / SAMPLING_RATE
-        logger.info("Audio duration is: %2.2f seconds", duration)
-
     # initialize_asr
-    asr, online = asr_factory(args, logfile=None)
+    asr, transcriber = asr_factory(args, logfile=None)
     min_chunk = args.vac_chunk_size if args.vac else args.min_chunk_size
+    warmup_asr(asr, args.warmup_file)
+    
     
 
     # initialize_translation_pipeline
@@ -61,37 +117,13 @@ def main():
 
 
 
-    a = load_audio_chunk(audio_path, 0, 1)
-    asr.transcribe(a)
+    process_audio(audio_source, transcriber,translation_pipeline,min_chunk)
 
-    beg = args.start_at
-    start = time.time() - beg
-    end = 0
 
-    while True:
-        now = time.time() - start
-        if now < end + min_chunk:
-            time.sleep(min_chunk + end - now)
-        end = time.time() - start
-        a = load_audio_chunk(audio_path, beg, end)
-        beg = end
-        online.insert_audio_chunk(a)
 
-        try:
-            o = online.process_iter()
-        except AssertionError as e:
-            logger.error(f"assertion error: {e}")
-        else:
-            output_transcript(o, start, translation_pipeline)
-        
-        now = time.time() - start
-        logger.debug(f"## last processed {end:.2f} s, now is {now:.2f}, the latency is {now-end:.2f}")
 
-        if end >= duration:
-            break
 
-    o = online.finish()
-    output_transcript(o, start, translation_pipeline, now=None)
+
 
 if __name__ == "__main__":
     main()
