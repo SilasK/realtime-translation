@@ -170,7 +170,7 @@ class FileAudioSource(AudioSource):
         self.running = False
     
     def get_chunk(self):
-        """Get a chunk of audio data, simulating real-time capture."""
+        """Get a chunk of audio data, waiting until the chunk is ready."""
         if not self.running:
             logger.debug("Audio source is not running.")
             return None
@@ -178,9 +178,11 @@ class FileAudioSource(AudioSource):
         current_time = time.time()
         expected_position = current_time - self.start_time
         
-        if expected_position < self.position:
-            logger.debug("You cannot access audio data from the future.")
-            return None
+        # Wait until this chunk of audio should be available
+        while self.running and expected_position < self.position + self.chunk_size:
+            time.sleep(0.001)  # Small sleep to prevent busy waiting
+            current_time = time.time()
+            expected_position = current_time - self.start_time
             
         if self.position >= len(self.audio_data) / self.sample_rate:
             logger.debug("End of audio file.")
@@ -244,57 +246,38 @@ class MicrophoneAudioSource(AudioSource):
             self.stream.close()
 
 
-def test_audio_source(get_audio_source,n_chunks=5, chunk_size=1.0):
 
-    logger.info("Ask for audio with normal speed")
-    audio_source = get_audio_source()
-    audio_source.start()
+def test_audio_source(get_audio_source, n_chunks=5, chunk_size=1.0):
+    test_cases = [
+        ("Ask for audio with normal speed", 1.0),
+        ("Ask for audio too fast", 0.5),
+        ("Ask for audio too slow", 1.5),
+    ]
 
-    for i in range(n_chunks):
-        time.sleep(chunk_size)
-        chunk = audio_source.get_chunk()
-        if chunk is None:
-            logger.warning("Got no audio. audio finished?")
-        else:
-            logger.info(f"Got chunk {i} with shape {chunk.shape}")
+    for description, multiplier in test_cases:
+        logger.info(description)
 
-        
-    audio_source.stop()
+        audio_source = get_audio_source()
+        start_time = time.time()
+        audio_source.start()
 
-    logger.info("Ask for audio too fast")
-    audio_source = get_audio_source()
-    audio_source.start()
 
-    for i in range(n_chunks):
-        time.sleep(0.5*chunk_size)
-        chunk = audio_source.get_chunk()
-        if chunk is None:
-            logger.info("Got no audio. asking too fast")
-        else:
-            logger.info(f"Got chunk {i} with shape {chunk.shape}")
+        for i in range(n_chunks):
+            time.sleep(multiplier * chunk_size)
+            chunk = audio_source.get_chunk()
+            time_stamp = f"After {(time.time()-start_time):.2f}s:"
+            if chunk is None:
+                logger.warning( time_stamp+"Got no audio. ")
+            else:
+                logger.info(time_stamp+f"Got chunk {i} with shape {chunk.shape}")
 
-    audio_source.stop()
+        audio_source.stop()
 
-    logger.info("Ask for audio too slow")
-    audio_source = get_audio_source()
-    audio_source.start()
-
-    for i in range(n_chunks):
-
-        time.sleep(1.5*chunk_size)
-        chunk = audio_source.get_chunk()
-        if chunk is None:
-            logger.info("Got no audio. I don't know why")
-        else:
-
-            logger.info(f"Got chunk {i} with shape {chunk.shape}")
-
-    audio_source.stop()
-
+    # Ask for audio after stopping
     logger.info("Ask for audio after stopping")
     audio_source = get_audio_source()
     audio_source.start()
-    time.sleep(0.5*chunk_size)
+    time.sleep(1.5 * chunk_size)
     audio_source.stop()
 
     for i in range(n_chunks):
@@ -303,8 +286,6 @@ def test_audio_source(get_audio_source,n_chunks=5, chunk_size=1.0):
             logger.info("Got no audio. asking after stopping")
         else:
             logger.info(f"Got chunk {i} with shape {chunk.shape}")
-
-    
 
 
 
