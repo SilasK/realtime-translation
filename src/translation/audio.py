@@ -1,4 +1,3 @@
-
 import numpy as np
 import librosa
 from functools import lru_cache
@@ -218,25 +217,28 @@ class MicrophoneAudioSource(AudioSource):
             samplerate=self.sample_rate,
             channels=1,
             callback=self.audio_callback,
+            blocksize=self.chunk_size,
             dtype=np.float32
         )
+        logger.debug(f"Starting stream with: rate={self.sample_rate}, channels={self.channels}, blocksize={self.chunk_size}")
         self.stream.start()
+    
+    def get_chunk(self, timeout=None):
+        if not self.running:
+            return None
+        try:
+            chunk = self.audio_queue.get(timeout=timeout)
+            logger.debug(f"Got chunk of size: {len(chunk)}")
+            return chunk.flatten()
+        except queue.Empty:
+            logger.warning("Audio queue empty")
+            return None
     
     def stop(self):
         self.running = False
         if hasattr(self, 'stream'):
             self.stream.stop()
             self.stream.close()
-    
-    def get_chunk(self):
-        if not self.running:
-            return None
-        try:
-            
-            chunk = self.audio_queue.get(timeout=self.chunk_size)
-            return chunk.flatten()
-        except queue.Empty:
-            return np.zeros(int(self.chunk_size * self.sample_rate))
 
 
 def test_audio_source(get_audio_source,n_chunks=5, chunk_size=1.0):
@@ -248,7 +250,7 @@ def test_audio_source(get_audio_source,n_chunks=5, chunk_size=1.0):
     for i in range(n_chunks):
         time.sleep(chunk_size)
         chunk = audio_source.get_chunk()
-        print(f"Got chunk {i} with length {len(chunk)}")
+        print(f"Got chunk {i} with shape {chunk.shape}")
 
         import pdb; pdb.set_trace()
         
@@ -264,7 +266,7 @@ def test_audio_source(get_audio_source,n_chunks=5, chunk_size=1.0):
         if chunk is None:
             print("Got no audio. asking too fast")
         else:
-            print(f"Got chunk {i} with length {len(chunk)}")
+            print(f"Got chunk {i} with shape {chunk.shape}")
 
     audio_source.stop()
 
@@ -276,7 +278,7 @@ def test_audio_source(get_audio_source,n_chunks=5, chunk_size=1.0):
 
         time.sleep(1.5*chunk_size)
         chunk = audio_source.get_chunk()
-        print(f"Got chunk {i} with length {len(chunk)}")
+        print(f"Got chunk {i} with shape {chunk.shape}")
 
     audio_source.stop()
 
@@ -291,7 +293,7 @@ def test_audio_source(get_audio_source,n_chunks=5, chunk_size=1.0):
         if chunk is None:
             print("Got no audio. asking after stopping")
         else:
-            print(f"Got chunk {i} with length {len(chunk)}")
+            print(f"Got chunk {i} with shape {chunk.shape}")
 
     
 
@@ -340,10 +342,4 @@ if __name__ == "__main__":
         
         test_audio_source(get_audio_source)
 
-    # Now test the microphone audio source
 
-
- 
-
-
-    
