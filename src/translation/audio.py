@@ -65,272 +65,198 @@ def load_audio_chunk(fname, beg, end):
     return audio[beg_s:end_s]
 
 
-
-
-from abc import ABC, abstractmethod
-import queue
+import numpy as np
 import sounddevice as sd
+import threading
 import time
+import logging
+from pathlib import Path
+from typing import Optional, Callable
 
+logger = logging.getLogger(__name__)
 
-class AudioSource(ABC):
-    def __init__(self,chunk_size=1.0,sample_rate=SAMPLING_RATE):
-        """Initialize an audio source.
-        
-        Args:
-            chunk_size (float): Size of audio chunks in seconds
-            sample_rate (int): Sample rate of the audio source
+class AudioInput:
+    def __init__(
+        self,
+        callback: Callable,
+        source: str = "mic",
+        sample_rate: int = 16000,
+        chunk_size: float = 1.0,
+        channels: int = 1,
+        dtype: np.dtype = np.float32,
+    ):
         """
-        self.chunk_size = chunk_size
+        Args:
+            callback: Function to call with new audio data
+            source: "mic" or path to audio file
+            sample_rate: Sample rate in Hz
+            chunk_size: Size of audio chunks in seconds
+            channels: Number of audio channels
+            dtype: Numpy dtype for audio data
+        """
+        self.callback = callback
         self.sample_rate = sample_rate
-    
-    @abstractmethod
-    def start(self): pass
-    
-    @abstractmethod
-    def stop(self): pass
-    
-    @abstractmethod
-    def get_chunk(self, chunk_size): pass
-
-class FileAudioSource(AudioSource):
-    """
-    A class representing an audio source from a file.
-    This class inherits from AudioSource and provides functionality to stream audio data
-    from a file in chunks.
-    Parameters
-    ----------
-    audio_path : str or Path
-        Path to the audio file to be loaded
-    start_from : float, optional
-        Starting position in seconds to begin streaming from (default is 0)
-    chunk_size : float
-        Size of audio chunks in seconds to be yielded
-    sample_rate : int, optional
-        Sampling rate of the audio in Hz (default is SAMPLING_RATE)
-    Attributes
-    ----------
-    audio_path : Path
-        Path object representing the location of the audio file
-    audio_data : numpy.ndarray
-        Loaded audio data
-    position : float
-        Current position in the audio stream in seconds
-    running : bool
-        Flag indicating if the audio source is currently streaming
-    start_time : float or None
-        Timestamp when streaming started, None if not started
-    Notes
-    -----
-    The audio file is loaded entirely into memory upon initialization.
-    """
-
-    def __init__(self, audio_path,  chunk_size:float,
-                    start_from:float=0, sample_rate=SAMPLING_RATE):
-
-
-        super().__init__(chunk_size, sample_rate)
-
-        self.audio_path = Path(audio_path)
-        self.audio_data = load_audio(audio_path)
-        self.position = start_from
-        self.running = False
-        self.start_time = None
-        duration = len(self.audio_data) / sample_rate
-        logger.debug(f"Loaded audio from {audio_path} with duration {duration:.2f}s.")
-    
-
-        self.position = 0
-        self.duration = len(self.audio_data) / sample_rate
-    
-    class FileAudioSource(AudioSource):
-        def __init__(self, audio_path, chunk_size:float,start_from:float=0, sample_rate=SAMPLING_RATE):
-            """Initialize an AudioStream object.
-            Args:
-                audio_path: Path to the audio file to stream
-                start_from (float): Position in seconds to start streaming from (default: 0)
-                sample_rate (int): Sample rate of the audio
-                chunk_size (float): Size of audio chunks in seconds (default: 1.0)
-            """
-            self.audio_path = Path(audio_path)
-            self.sample_rate = sample_rate
-            self.audio_data = load_audio(audio_path)
-            self.position = start_from
-            self.chunk_size = chunk_size
-            self.running = False
-            self.start_time = None
-            duration = len(self.audio_data) / sample_rate
-            logger.debug(f"Loaded audio from {audio_path} with duration {duration:.2f}s.")
-        
-    def start(self):
-        self.start_time = time.time() - self.position
-        self.running = True
-    
-    def stop(self):
-        self.running = False
-    
-    def get_chunk(self):
-        """Get a chunk of audio data, waiting until the chunk is ready."""
-        if not self.running:
-            logger.debug("Audio source is not running.")
-            return None
-            
-        current_time = time.time()
-        expected_position = current_time - self.start_time
-        
-        # Wait until this chunk of audio should be available
-        while self.running and expected_position < self.position + self.chunk_size:
-            time.sleep(0.001)  # Small sleep to prevent busy waiting
-            current_time = time.time()
-            expected_position = current_time - self.start_time
-            
-        if self.position >= len(self.audio_data) / self.sample_rate:
-            logger.debug("End of audio file.")
-            return None
-            
-        start_pos = int(self.position * self.sample_rate)
-        end_pos = int((self.position + self.chunk_size) * self.sample_rate)
-        chunk = self.audio_data[start_pos:end_pos]
-        self.position += self.chunk_size
-        return chunk
-
-
-
-
-
-
-
-class MicrophoneAudioSource(AudioSource):
-    def __init__(self, chunk_size:float,sample_rate=SAMPLING_RATE):
-        super().__init__(chunk_size, sample_rate)
-
-
-        self.audio_queue = queue.Queue()
+        self.chunk_size = chunk_size
+        self.channels = channels
+        self.dtype = dtype
         self.running = False
         
-    def audio_callback(self, indata, frames, time, status):
-        if status:
-            logger.warning(f"Audio callback status: {status}")
-        self.audio_queue.put(indata.copy())
-    
-    def start(self):
-        self.running = True
+        # Calculate block size in samples
+        self.block_size = int(chunk_size * sample_rate)
+        
+        if source.lower() == "mic":
+            self._setup_microphone()
+        else:
+            self._setup_file_simulation(source)
 
-        block_size = int(self.chunk_size * self.sample_rate)
-        channels = 1
-
+    def _setup_microphone(self):
+        """Configure microphone input"""
         self.stream = sd.InputStream(
             samplerate=self.sample_rate,
-            channels=channels,
-            callback=self.audio_callback,
-            blocksize=block_size,
-            dtype=np.float32
+            channels=self.channels,
+            callback=self._audio_callback,
+            blocksize=self.block_size,
+            dtype=self.dtype
         )
-        logger.debug(f"Starting stream with: rate={self.sample_rate}, channels={channels}, blocksize={block_size}")
-        self.stream.start()
-    
-    def get_chunk(self, timeout=None):
-        if not self.running:
-            return None
-        try:
-            chunk = self.audio_queue.get(timeout=timeout)
-            return chunk.flatten()
-        except queue.Empty:
-            logger.warning("Audio queue empty")
-            return None
-    
+        
+    def _setup_file_simulation(self, file_path: str):
+        """Configure file simulation"""
+        if not Path(file_path).is_file():
+            raise FileNotFoundError(f"Audio file not found: {file_path}")
+
+        self.audio_data = load_audio(file_path)
+        self.position = 0
+        self.simulation_thread = None
+        
+    def _audio_callback(self, indata, frames, time_info, status):
+        """Callback for both real and simulated audio"""
+        if status:
+            logger.warning(f"Audio callback status: {status}")
+        
+        # Ensure consistent shape
+        data = indata.copy()
+        if len(data.shape) > 1:
+            data = data.flatten()
+            
+        # Call user callback
+        self.callback(data)
+
+    def _simulate_stream(self):
+        """Simulate real-time audio from file"""
+        chunk_duration = self.chunk_size
+        
+        while self.running and self.position < len(self.audio_data):
+            start_pos = self.position
+            end_pos = start_pos + self.block_size
+            
+            # Get chunk and handle end of file
+            chunk = self.audio_data[start_pos:end_pos]
+            if len(chunk) < self.block_size:
+                chunk = np.pad(chunk, (0, self.block_size - len(chunk)))
+            
+            # Reshape for callback
+            chunk = chunk.reshape(-1, 1)
+            
+            # Call callback
+            self._audio_callback(chunk, self.block_size, None, None)
+            
+            # Update position
+            self.position += self.block_size
+            
+            # Sleep to simulate real-time
+            time.sleep(chunk_duration)
+
+    def start(self):
+        """Start audio input"""
+        self.running = True
+        
+        if hasattr(self, 'stream'):
+            self.stream.start()
+        else:
+            self.simulation_thread = threading.Thread(
+                target=self._simulate_stream,
+                daemon=True
+            )
+            self.simulation_thread.start()
+
     def stop(self):
+        """Stop audio input"""
         self.running = False
+        
         if hasattr(self, 'stream'):
             self.stream.stop()
             self.stream.close()
+        elif self.simulation_thread:
+            self.simulation_thread.join(timeout=1.0)
+
+def test_audio_input(n_terations=4):
+    import tempfile
+    import soundfile as sf
+    """Test both microphone and file input"""
+
+    
+
+    def audio_callback(data):
+        
+        current_time = time.time()
+        time_diff = current_time - audio_callback.last_time
+        audio_callback.last_time = current_time
+        
+        logger.info(f"Got audio chunk: shape={data.shape}, iteration={audio_callback.iteration}, time_diff={time_diff:.4f}s")
+        
+        if audio_callback.iteration <=1:
+            
+            sleep_time = 0.5
+            logger.info(f"Sleeping for {sleep_time:.2f}s")
+            time.sleep(sleep_time)
+        
+        audio_callback.iteration += 1
 
 
+    audio_callback.iteration = 1
+    audio_callback.last_time = np.nan
+        
 
-def test_audio_source(get_audio_source, n_chunks=5, chunk_size=1.0):
-    test_cases = [
-        ("Ask for audio with normal speed", 1.0),
-        ("Ask for audio too fast", 0.5),
-        ("Ask for audio too slow", 1.5),
-    ]
-
-    for description, multiplier in test_cases:
-        logger.info(description)
-
-        audio_source = get_audio_source()
-        start_time = time.time()
-        audio_source.start()
+    # Test microphone
+    logger.info("Testing microphone input...")
+    mic_input = AudioInput(audio_callback, source="mic")
+    mic_input.start()
+    time.sleep(n_terations)
+    mic_input.stop()
 
 
-        for i in range(n_chunks):
-            time.sleep(multiplier * chunk_size)
-            chunk = audio_source.get_chunk()
-            time_stamp = f"After {(time.time()-start_time):.2f}s:"
-            if chunk is None:
-                logger.warning( time_stamp+"Got no audio. ")
-            else:
-                logger.info(time_stamp+f"Got chunk {i} with shape {chunk.shape}")
+    audio_callback.iteration = 1
+    audio_callback.last_time = np.nan
 
-        audio_source.stop()
+    with tempfile.NamedTemporaryFile(suffix=".wav") as temp_audio_file:
+        # Record 5 seconds of audio from the microphone and save to a file
+        temp_audio_path = temp_audio_file.name
 
-    # Ask for audio after stopping
-    logger.info("Ask for audio after stopping")
-    audio_source = get_audio_source()
-    audio_source.start()
-    time.sleep(1.5 * chunk_size)
-    audio_source.stop()
-
-    for i in range(n_chunks):
-        chunk = audio_source.get_chunk()
-        if chunk is None:
-            logger.info("Got no audio. asking after stopping")
-        else:
-            logger.info(f"Got chunk {i} with shape {chunk.shape}")
+        logger.info("Recording 5 seconds of audio...")
+        recording = sd.rec(int(5 * SAMPLING_RATE), samplerate=SAMPLING_RATE, channels=1, dtype=np.float32)
+        sd.wait()  # Wait until recording is finished
 
 
+        sf.write(temp_audio_path, recording.flatten(), SAMPLING_RATE )
+        logger.debug(f"Recorded audio saved to {temp_audio_path}")
 
 
+        logger.info("Testing file input...")
+
+        file_input = AudioInput(
+            audio_callback,
+            source=temp_audio_path
+        )
+        file_input.start()
+        time.sleep(n_terations)
+        file_input.stop()
 
 
 
 if __name__ == "__main__":
-    # First record some audio and save to temp file
-    import tempfile
-    import os
-    import time
-    import soundfile as sf
-    logging.basicConfig(level=logging.INFO)  
-    logger.setLevel(logging.DEBUG)  
+    logging.basicConfig(level=logging.INFO)
+    logger.setLevel(logging.DEBUG)
+    test_audio_input()
 
-
-    logger.info("Testing microphone audio source")
-
-    def get_audio_source():
-        return MicrophoneAudioSource(chunk_size=1.0)
-    
-    test_audio_source(get_audio_source)
-
-
-
-    with tempfile.NamedTemporaryFile(suffix=".wav") as temp_audio_file:
-        temp_file = temp_audio_file.name
-
-        audio_source = MicrophoneAudioSource(chunk_size=1.0)
-        audio_source.start()
-        time.sleep(5)
-        audio_source.stop()
-
-        audio_data = audio_source.audio_queue.queue
-        audio_data = np.concatenate(list(audio_data))
-        sf.write(temp_file, audio_data, SAMPLING_RATE )
-
-        # load the audio into the audio source
-
-        logger.info("Testing file audio source")
-
-        def get_audio_source():
-            return FileAudioSource(temp_file, chunk_size=1.0)
-        
-        test_audio_source(get_audio_source)
 
 
