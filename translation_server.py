@@ -9,15 +9,29 @@ import yaml
 from pathlib import Path
 import signal
 
+import logging
+
+
+from src.translation.logging import add_other_loggers,logger
+
+logger.remove()
+logger.add(sys.stdout, level="DEBUG", format="{time}<level>[{level}]: {message}</level>", colorize=True)
+
+
+
+
+
+
+
 
 from src.translation.audio import load_audio, play_audio, load_audio_chunk
-from src.translation.audio import FileAudioSource, MicrophoneAudioSource
+from src.translation.audio import AudioInput
 
 from src.translation.translation import TranslationPipeline
 from src.whisper_streaming.whisper_online import asr_factory, set_logging
 
 SAMPLING_RATE = 16000
-logger = logging.getLogger(__name__)
+
 
 def load_config(config_file: str) -> argparse.Namespace:
     with open(config_file, 'r') as f:
@@ -39,19 +53,23 @@ def log_transcript(o, start, now=None):
         now = time.time() - start
     if o[0] is not None:
         log_string = f"{now*1000:1.0f}, {o[0]*1000:1.0f}-{o[1]*1000:1.0f} ({(now-o[1]):+1.0f}s): {o[2]}"
-        logger.debug(log_string)
+        logger.info(log_string)
         
 
 
 def process_audio(audio_source, transcriber,translation_pipeline,min_chunk):
     running = True
+
+    ## Keyboard interrupt handler
     def signal_handler(signum, frame):
         nonlocal running
         logger.info("Stopping audio processing...")
         running = False
-
-    
     signal.signal(signal.SIGINT, signal_handler)
+
+
+
+
     
     try:
 
@@ -63,16 +81,15 @@ def process_audio(audio_source, transcriber,translation_pipeline,min_chunk):
         
         start = time.time()
         while running:
-            chunk = audio_source.get_chunk(min_chunk)
-            if chunk is None:
-                break
-                
-            transcriber.insert_audio_chunk(chunk)
             try:
                 o = transcriber.process_iter()
-                log_transcript(o, start)
-                translation_pipeline.put_text(o[2])
-            except AssertionError as e:
+                if o[0] is  None:
+                    logger.warning("No output from transcriber.")
+                    continue
+                else:
+                    log_transcript(o, start)
+                    translation_pipeline.put_text(o[2])
+            except Exception as e:
                 logger.error(f"Assertion error: {e}")
             
             now = time.time() - start
@@ -92,21 +109,21 @@ def main():
     config_file = "translation_server_config.yaml"
 
     args = load_config(config_file)
-    set_logging(args, logger, others=["src.whisper_streaming.online_asr", "src.translation.translation", "src.translation.audio"])
+    add_other_loggers(["src.whisper_streaming.online_asr", "src.translation.translation", "src.translation.audio"], level="DEBUG")
 
 
-    if args.input_audio is None or args.input_audio.lower() == "mic":
-        audio_source = MicrophoneAudioSource()
-    else:
-        audio_source = FileAudioSource(args.input_audio)
-    
 
     # initialize_asr
     asr, transcriber = asr_factory(args, logfile=None)
     min_chunk = args.vac_chunk_size if args.vac else args.min_chunk_size
     warmup_asr(asr, args.warmup_file)
-    
-    
+
+    def put_audiochunk_in_transcriber(chunk):
+        transcriber.insert_audio_chunk(chunk)
+
+    audio_source = AudioInput(callback= put_audiochunk_in_transcriber, source=args.input_audio, sample_rate=SAMPLING_RATE, chunk_size=min_chunk)
+
+
 
     # initialize_translation_pipeline
     output_folder = Path("translations")
