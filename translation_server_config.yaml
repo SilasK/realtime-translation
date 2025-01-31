@@ -4,7 +4,9 @@ target_languages:
   - de
   - uk
 
-input_audio: "/Users/silas/GitHub/whisper_streaming_web/mydata/preche.wav"
+warmup_file: "/Users/silas/GitHub/whisper_streaming_web/mydata/samples_jfk.wav"
+#input_audio: "/Users/silas/GitHub/whisper_streaming_web/mydata/preche.wav"
+input_audio: "mic"
 
 model: large-v3-turbo
  
