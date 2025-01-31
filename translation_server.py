@@ -15,7 +15,7 @@ import logging
 from src.translation.logging import add_other_loggers,logger
 
 logger.remove()
-logger.add(sys.stdout, level="DEBUG", format="{time}<level>[{level}]: {message}</level>", colorize=True)
+logger.add(sys.stdout, level="DEBUG", format="{time:%H:%M:%S.%f}<level>[{level}]: {message}</level>", colorize=True)
 
 
 
