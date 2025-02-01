@@ -84,7 +84,8 @@ def process_audio(audio_source, transcriber,translation_pipeline,min_chunk):
             try:
                 o = transcriber.process_iter()
                 if o[0] is  None:
-                    logger.warning("No output from transcriber.")
+                    logger.debug("No output from transcriber.")
+                    time.sleep(min_chunk/2)
                     continue
                 else:
                     log_transcript(o, start)
@@ -120,6 +121,7 @@ def main():
 
     def put_audiochunk_in_transcriber(chunk):
         transcriber.insert_audio_chunk(chunk)
+        time.sleep(0.1)
 
     audio_source = AudioInput(callback= put_audiochunk_in_transcriber, source=args.input_audio, sample_rate=SAMPLING_RATE, chunk_size=min_chunk)
 

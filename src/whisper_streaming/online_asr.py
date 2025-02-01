@@ -121,13 +121,14 @@ class OnlineASRProcessor:
         if self.buffer_trimming_sec <= 0:
             raise ValueError("buffer_trimming_sec must be positive")
         elif self.buffer_trimming_sec > 30:
-            logger.warning(
-                f"buffer_trimming_sec is set to {self.buffer_trimming_sec}, which is very long. It may cause OOM."
+            raise ValueError(
+                f"buffer_trimming_sec is set to {self.buffer_trimming_sec}, which is larger than the max for Whisper."
             )
 
     def init(self, offset=None):
         """run this when starting or restarting processing"""
         self.audio_buffer = np.array([], dtype=np.float32)
+        self.len_audio_buffer_last_transcribed= 0
         self.transcript_buffer = HypothesisBuffer(logfile=self.logfile)
         self.buffer_time_offset = 0
         if offset is not None:
@@ -135,6 +136,7 @@ class OnlineASRProcessor:
         self.transcript_buffer.last_commited_time = self.buffer_time_offset
         self.final_transcript = []
         self.commited_not_final = []
+        
  
 
     def insert_audio_chunk(self, audio):
@@ -186,11 +188,18 @@ class OnlineASRProcessor:
         The non-emty text is confirmed (committed) partial transcript.
         """
 
-        prompt, non_prompt = self.prompt()
-
+        
+        len_audio_buffer_now= len(self.audio_buffer)
+        if len_audio_buffer_now == self.len_audio_buffer_last_transcribed:
+            logger.debug("No new audio data.")
+            return (None, None, "")
+    
+        self.len_audio_buffer_last_transcribed = len_audio_buffer_now
         logger.info(
-            f"transcribing {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f} seconds from {self.buffer_time_offset:2.2f}"
+            f"transcribing {len_audio_buffer_now/self.SAMPLING_RATE:2.2f} seconds from {self.buffer_time_offset:2.2f}"
         )
+
+        prompt, non_prompt = self.prompt()
 
         ## Transcribe and format the result to [(beg,end,"word1"), ...]
         res = self.asr.transcribe(self.audio_buffer, init_prompt=prompt)
@@ -200,9 +209,13 @@ class OnlineASRProcessor:
         # insert into HypothesisBuffer, and get back the commited words
         self.transcript_buffer.insert(tsw, self.buffer_time_offset)
         commited_tsw = self.transcript_buffer.flush()
+
+        
         
         if len(commited_tsw) == 0:
             return (None, None, "")
+        else:
+            logger.debug(f"Newly commited words: {self.concatenate_tsw(commited_tsw)[2]}")
 
 
         self.commited_not_final.extend(commited_tsw)
