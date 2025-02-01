@@ -165,7 +165,7 @@ async def start_ffmpeg_decoder():
             raise ValueError(f"input_source must be 'webm', 'local-mic', or a valid file path. {input_file} does not exist.")
             
         process = (
-            ffmpeg.input(args.input_file)
+            ffmpeg.input(input_file)
             .output("pipe:1", format="s16le", acodec="pcm_s16le", ac=CHANNELS, ar=str(SAMPLE_RATE))
             .run_async(pipe_stdout=True, pipe_stderr=True)
         )
