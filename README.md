@@ -12,6 +12,8 @@ This project extends the [Whisper Streaming](https://github.com/ufal/whisper_str
 
 5. **MLX Whisper backend**: Integrates the alternative backend option MLX Whisper, optimized for efficient speech recognition on Apple silicon.
 
+6. **Diarization (beta)**: Adds speaker labeling in real-time alongside transcription using the [Diart](https://github.com/juanmc2005/diart) library. Each transcription segment is tagged with a speaker.
+
 ![Demo Screenshot](src/web/demo.png)
 
 ##  Code Origins
@@ -64,6 +66,9 @@ This project reuses and extends code from the original Whisper Streaming reposit
 
     # If you want to run the server using uvicorn (recommended)
     uvicorn
+
+    # If you want to use diarization
+    diart
     ```
 
 
@@ -76,6 +81,8 @@ This project reuses and extends code from the original Whisper Streaming reposit
     - `--host` and `--port` let you specify the server’s IP/port. 
     - `-min-chunk-size` sets the minimum chunk size for audio processing. Make sure this value aligns with the chunk size selected in the frontend. If not aligned, the system will work but may unnecessarily over-process audio data.
     - For a full list of configurable options, run `python whisper_fastapi_online_server.py -h`
+    - `--diarization`, default to False, let you choose whether or not you want to run diarization in parallel
+    - For other parameters, look at [whisper streaming](https://github.com/ufal/whisper_streaming) readme.
 
 4. **Open the Provided HTML**:
 

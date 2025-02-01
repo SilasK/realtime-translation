@@ -164,7 +164,7 @@ class MLXWhisper(ASRBase):
     Significantly faster than faster-whisper (without CUDA) on Apple M1.
     """
 
-    sep = " "
+    sep = "" # In my experience in french it should also be no space.
 
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         """
