@@ -191,7 +191,7 @@ class OnlineASRProcessor:
         
         len_audio_buffer_now= len(self.audio_buffer)
         if len_audio_buffer_now == self.len_audio_buffer_last_transcribed:
-            logger.debug("No new audio data.")
+            #logger.debug("No new audio data.")
             return (None, None, "")
     
         self.len_audio_buffer_last_transcribed = len_audio_buffer_now
@@ -215,7 +215,7 @@ class OnlineASRProcessor:
         if len(commited_tsw) == 0:
             return (None, None, "")
         else:
-            logger.debug(f"Newly commited words: {self.concatenate_tsw(commited_tsw)[2]}")
+            logger.debug(f"Newly committed words: {self.concatenate_tsw(commited_tsw)[2]}")
 
 
         self.commited_not_final.extend(commited_tsw)

@@ -17,6 +17,8 @@ from src.translation.logging import add_other_loggers,logger
 logger.remove()
 logger.add(sys.stdout, level="DEBUG", format="{time:%H:%M:%S.%f}<level>[{level}]: {message}</level>", colorize=True)
 
+logger.add("logs/translation_server.log", level="DEBUG", format="{time:%H:%M:%S.%f}[{level}]: {message}", colorize=True)
+
 
 
 
@@ -48,62 +50,18 @@ def warmup_asr(asr, warmup_file):
 
 
 
-def log_transcript(o, start, now=None):
+def log_transcript(o, start, now=None, timestamped_file = None):
+    if o[0] is None:
+        return
     if now is None:
         now = time.time() - start
-    if o[0] is not None:
-        log_string = f"{now:1.3f}, {o[0]:1.3f}-{o[1]:1.3f} ({(now-o[1]):+1.1f}s): {o[2]}"
-        logger.info(log_string)
-        
-
-
-def process_audio(audio_source, transcriber,translation_pipeline,min_chunk):
-    running = True
-
-    ## Keyboard interrupt handler
-    def signal_handler(signum, frame):
-        nonlocal running
-        logger.info("Stopping audio processing...")
-        running = False
-    signal.signal(signal.SIGINT, signal_handler)
-
-
-
-
     
-    try:
-
-
-        logger.info("Ready to process audio.")
-        audio_source.start()
+    log_string = f"{now:7.3f}, {o[0]:7.3f}-{o[1]:7.3f} ({(now-o[1]):+2.1f}s): {o[2]}"
+    logger.info(log_string)
+    if timestamped_file is not None:
+        timestamped_file.write(log_string + "\n")
+        timestamped_file.flush()
         
-
-        
-        start = time.time()
-        while running:
-            try:
-                o = transcriber.process_iter()
-                if o[0] is  None:
-                    logger.debug("No output from transcriber.")
-                    time.sleep(min_chunk/2)
-                    continue
-                else:
-                    log_transcript(o, start)
-                    translation_pipeline.put_text(o[2])
-            except Exception as e:
-                logger.error(f"Assertion error: {e}")
-            
-            now = time.time() - start
-            logger.debug(f"Processed chunk at {now:.2f}s")
-            
-    except Exception as e:
-        logger.error(f"Error during processing: {e}")
-    finally:
-        audio_source.stop()
-        o = transcriber.finish()
-        log_transcript(o, start)
-        translation_pipeline.put_text(o[2])
-        translation_pipeline.stop()
 
 
 def main():
@@ -134,10 +92,58 @@ def main():
     )
     translation_pipeline.start()
 
+    timestamped_file = open(output_folder / f"transcript_with_timestamps.txt","w")
 
 
-    process_audio(audio_source, transcriber,translation_pipeline,min_chunk)
 
+
+    #def process_audio(audio_source, transcriber,translation_pipeline,min_chunk):
+    running = True
+
+    ## Keyboard interrupt handler
+    def signal_handler(signum, frame):
+        nonlocal running
+        logger.info("Stopping audio processing...")
+        running = False
+    signal.signal(signal.SIGINT, signal_handler)
+
+
+
+
+    
+    try:
+
+
+        logger.info("Ready to process audio.")
+        audio_source.start()
+        
+
+        
+        start = time.time()
+        while running:
+            try:
+                o = transcriber.process_iter()
+                if o[0] is  None:
+                    #logger.debug("No output from transcriber.")
+                    continue
+                else:
+                    log_transcript(o, start,timestamped_file=timestamped_file)
+                    translation_pipeline.put_text(o[2])
+            except Exception as e:
+                logger.error(f"Assertion error: {e}")
+            
+            now = time.time() - start
+            logger.debug(f"Processed chunk at {now:.2f}s")
+            
+    except Exception as e:
+        logger.error(f"Error during processing: {e}")
+    finally:
+        audio_source.stop()
+        o = transcriber.finish()
+        log_transcript(o, start,timestamped_file=timestamped_file)
+        timestamped_file.close()
+        translation_pipeline.put_text(o[2])
+        translation_pipeline.stop()
 
 
 

@@ -2,3 +2,4 @@
 - [ ] Sentence that are not correctly endend and transcribed by a final dot.
 - [ ] Ellipses, are some parts missing?
 - [ ] Paragraph breaks
+- [ ] Delay is increasing

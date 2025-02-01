@@ -90,31 +90,28 @@ if __name__ == "__main__":
     beg = args.start_at
     start = time.time() - beg
 
-    def output_transcript(o, now=None):
+    def output_transcript(o, now=None,timestamped_file = None):
         # output format in stdout is like:
         # 4186.3606 0 1720 Takhle to je
         # - the first three words are:
         #    - emission time from beginning of processing, in milliseconds
         #    - beg and end timestamp of the text segment, as estimated by Whisper model. The timestamps are not accurate, but they're useful anyway
         # - the next words: segment transcript
+
+        if o[0] is None:
+            return
         if now is None:
             now = time.time() - start
-        if o[0] is not None:
-            log_string = f"{now*1000:1.0f}, {o[0]*1000:1.0f}-{o[1]*1000:1.0f} ({(now-o[1]):+1.0f}s): {o[2]}"
+        
+        log_string = f"{now:7.3f}, {o[0]:7.3f}-{o[1]:7.3f} ({(now-o[1]):+2.1f}s): {o[2]}"
+        logger.info(log_string)
+        if timestamped_file is not None:
+            timestamped_file.write(log_string + "\n")
+            timestamped_file.flush()
 
-            logger.debug(
-                log_string
-            )
 
-            if logfile is not None:
-                print(
-                    log_string,
-                    file=logfile,
-                    flush=True,
-                )
-        else:
-            # No text, so no output
-            pass
+    timestamped_file = open("logs/test_timestamped_transcript.txt", "w")
+
 
     if args.offline:  ## offline mode processing (for testing/debugging)
         a = load_audio(audio_path)
@@ -124,7 +121,7 @@ if __name__ == "__main__":
         except AssertionError as e:
             logger.error(f"assertion error: {repr(e)}")
         else:
-            output_transcript(o)
+            output_transcript(o,timestamped_file=timestamped_file)
         now = None
     elif args.comp_unaware:  # computational unaware mode
         end = beg + min_chunk
@@ -137,7 +134,7 @@ if __name__ == "__main__":
                 logger.error(f"assertion error: {repr(e)}")
                 pass
             else:
-                output_transcript(o, now=end)
+                output_transcript(o, now=end,timestamped_file=timestamped_file)
 
             logger.debug(f"## last processed {end:.2f}s")
 
@@ -169,7 +166,7 @@ if __name__ == "__main__":
                 logger.error(f"assertion error: {e}")
                 pass
             else:
-                output_transcript(o)
+                output_transcript(o,timestamped_file=timestamped_file)
             now = time.time() - start
             logger.debug(
                 f"## last processed {end:.2f} s, now is {now:.2f}, the latency is {now-end:.2f}"
@@ -180,4 +177,5 @@ if __name__ == "__main__":
         now = None
 
     o = online.finish()
-    output_transcript(o, now=now)
+    output_transcript(o, now=now,timestamped_file=timestamped_file)
+    timestamped_file.close()
