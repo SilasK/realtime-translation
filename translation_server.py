@@ -52,7 +52,7 @@ def log_transcript(o, start, now=None):
     if now is None:
         now = time.time() - start
     if o[0] is not None:
-        log_string = f"{now*1000:1.0f}, {o[0]*1000:1.0f}-{o[1]*1000:1.0f} ({(now-o[1]):+1.0f}s): {o[2]}"
+        log_string = f"{now:1.3f}, {o[0]:1.3f}-{o[1]:1.3f} ({(now-o[1]):+1.1f}s): {o[2]}"
         logger.info(log_string)
         
 
