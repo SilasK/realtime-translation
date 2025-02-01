@@ -104,6 +104,13 @@ parser.add_argument(
     help="Whether to enable speaker diarization.",
 )
 
+parser.add_argument(
+    "--audio-source","-i",
+    type=str,
+    default="webm",
+    help="The audio source. Can be 'webm', 'local-mic', or a file path.",
+)
+
 
 add_shared_args(parser)
 args = parser.parse_args()
@@ -136,17 +143,33 @@ async def start_ffmpeg_decoder():
     Start an FFmpeg process in async streaming mode that reads WebM from stdin
     and outputs raw s16le PCM on stdout. Returns the process object.
     """
-    process = (
-        ffmpeg.input("pipe:0", format="webm")
-        .output(
-            "pipe:1",
-            format="s16le",
-            acodec="pcm_s16le",
-            ac=CHANNELS,
-            ar=str(SAMPLE_RATE),
+    
+    if args.audio_source == "webm":
+        process = (
+            ffmpeg.input("pipe:0", format="webm")
+            .output("pipe:1", format="s16le", acodec="pcm_s16le", ac=CHANNELS, ar=str(SAMPLE_RATE))
+            .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True)
         )
-        .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True)
-    )
+    elif args.audio_source == "local-mic":
+        # Adjust the input device and format as needed for your OS (e.g. ALSA for Linux or avfoundation for macOS)
+        process = (
+            ffmpeg.input("default", format="avfoundation", ac=CHANNELS, ar=str(SAMPLE_RATE))
+            .output("pipe:1", format="s16le", acodec="pcm_s16le", ac=CHANNELS, ar=str(SAMPLE_RATE))
+            .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True)
+        )
+    else:
+        from pathlib import Path
+        input_file = args.audio_source
+        if not Path(input_file).exists():
+
+            raise ValueError(f"input_source must be 'webm', 'local-mic', or a valid file path. {input_file} does not exist.")
+            
+        process = (
+            ffmpeg.input(args.input_file)
+            .output("pipe:1", format="s16le", acodec="pcm_s16le", ac=CHANNELS, ar=str(SAMPLE_RATE))
+            .run_async(pipe_stdout=True, pipe_stderr=True)
+        )
+
     return process
 
 
