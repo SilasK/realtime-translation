@@ -10,12 +10,16 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.whisper_streaming.whisper_online import backend_factory, online_factory, add_shared_args
-
+from pathlib import Path
 
 import logging
 import logging.config
 
 def setup_logging():
+
+    log_file= Path("logs/logfile.log")
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    
     logging_config = {
         'version': 1,
         'disable_existing_loggers': False,
@@ -26,13 +30,19 @@ def setup_logging():
         },
         'handlers': {
             'console': {
-                'level': 'DEBUG',
+                'level': 'INFO',
                 'class': 'logging.StreamHandler',
                 'formatter': 'standard',
             },
+            'file': {
+                'level': 'DEBUG',
+                'class': 'logging.FileHandler',
+                'formatter': 'standard',
+                'filename': str(log_file),
+            },
         },
         'root': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
             'level': 'DEBUG',
         },
         'loggers': {
@@ -48,12 +58,12 @@ def setup_logging():
                 'level': 'INFO',
             },
             'src.whisper_streaming': { 
-                'handlers': ['console'],
+                'handlers': ['console', 'file'],
                 'level': 'DEBUG',
                 'propagate': False,
             },
             'src.diarization': {  
-                'handlers': ['console'],
+                'handlers': ['console', 'file'],
                 'level': 'DEBUG',
                 'propagate': False,
             },
@@ -62,8 +72,12 @@ def setup_logging():
 
     logging.config.dictConfig(logging_config)
 
-setup_logging()
-logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
+    logger.info("I will log to {log_file} and to the console")
+    
+
+logger= setup_logging()
+
 
 
 
