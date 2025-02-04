@@ -130,6 +130,7 @@ dmypy.json
 
 *.wav
 run_*.sh
+logs/
 
 mydata/
 translations/
