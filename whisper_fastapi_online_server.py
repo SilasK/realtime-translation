@@ -19,6 +19,7 @@ def setup_logging():
 
     log_file= Path("logs/logfile.log")
     log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file.unlink(missing_ok=True)
     
     logging_config = {
         'version': 1,
@@ -42,8 +43,8 @@ def setup_logging():
             },
         },
         'root': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+            'handlers': ['console'],
+            'level': 'INFO',
         },
         'loggers': {
             'uvicorn': {
@@ -52,7 +53,7 @@ def setup_logging():
                 'propagate': False,
             },
             'uvicorn.error': {
-                'level': 'INFO',
+                'level': 'INFO',  
             },
             'uvicorn.access': {
                 'level': 'INFO',
