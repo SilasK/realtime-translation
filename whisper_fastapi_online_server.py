@@ -75,6 +75,7 @@ def setup_logging():
 
     logger = logging.getLogger(__name__)
     logger.info("I will log to {log_file} and to the console")
+    return logger
     
 
 logger= setup_logging()
@@ -111,23 +112,10 @@ parser.add_argument(
     dest="warmup_file",
     help="The path to a speech audio wav file to warm up Whisper so that the very first chunk processing is fast. It can be e.g. https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav .",
 )
-
-parser.add_argument(
-    "--diarization",
-    type=bool,
-    default=False,
-    help="Whether to enable speaker diarization.",
-)
-
-
 add_shared_args(parser)
 args = parser.parse_args()
 
 asr, tokenizer = backend_factory(args)
-
-if args.diarization:
-    from src.diarization.diarization_online import DiartDiarization
-
 
 # Load demo HTML for the root endpoint
 with open("src/web/live_transcription.html", "r", encoding="utf-8") as f:
@@ -165,7 +153,6 @@ async def start_ffmpeg_decoder():
     return process
 
 
-
 @app.websocket("/asr")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -177,18 +164,12 @@ async def websocket_endpoint(websocket: WebSocket):
     online = online_factory(args, asr, tokenizer)
     print("Online loaded.")
 
-    if args.diarization:
-        diarization = DiartDiarization(SAMPLE_RATE)
-
     # Continuously read decoded PCM from ffmpeg stdout in a background task
     async def ffmpeg_stdout_reader():
         nonlocal pcm_buffer
         loop = asyncio.get_event_loop()
         full_transcription = ""
         beg = time()
-        
-        chunk_history = []  # Will store dicts: {beg, end, text, speaker}
-        
         while True:
             try:
                 elapsed_time = int(time() - beg)
@@ -216,17 +197,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     )
                     pcm_buffer = bytearray()
                     online.insert_audio_chunk(pcm_array)
-                    beg_trans, end_trans, trans = online.process_iter()
-                    
-                    if trans:
-                        chunk_history.append({
-                        "beg": beg_trans,
-                        "end": end_trans,
-                        "text": trans,
-                        "speaker": "0"
-                        })
-                    
-                    full_transcription += trans
+                    transcription = online.process_iter()[2]
+                    logger.debug(f"Receved new commited transcription: {transcription}")
+                    full_transcription += transcription
                     if args.vac:
                         buffer = online.online.concatenate_tsw(
                             online.online.transcript_buffer.buffer
@@ -239,32 +212,11 @@ async def websocket_endpoint(websocket: WebSocket):
                         buffer in full_transcription
                     ):  # With VAC, the buffer is not updated until the next chunk is processed
                         buffer = ""
-                                        
-                    lines = [
-                        {
-                            "speaker": "0",
-                            "text": "",
-                        }
-                    ]
-                    
-                    if args.diarization:
-                        await diarization.diarize(pcm_array)
-                        diarization.assign_speakers_to_chunks(chunk_history)
 
-                    for ch in chunk_history:
-                        if args.diarization and ch["speaker"] and ch["speaker"][-1] != lines[-1]["speaker"]:
-                            lines.append(
-                                {
-                                    "speaker": ch["speaker"][-1],
-                                    "text": ch['text'],
-                                }
-                            )
-                        else:
-                            lines[-1]["text"] += ch['text']
-
-                    response = {"lines": lines, "buffer": buffer}
-                    await websocket.send_json(response)
-                    
+                    logger.debug(f"New noncommited: {buffer}")
+                    await websocket.send_json(
+                        {"transcription": transcription, "buffer": buffer}
+                    )
             except Exception as e:
                 print(f"Exception in ffmpeg_stdout_reader: {e}")
                 break
@@ -300,11 +252,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
         ffmpeg_process.wait()
         del online
-        
-        if args.diarization:
-            # Stop Diart
-            diarization.close()
-
 
 
 
