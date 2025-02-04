@@ -26,7 +26,7 @@ def setup_logging():
         },
         'handlers': {
             'console': {
-                'level': 'INFO',
+                'level': 'DEBUG',
                 'class': 'logging.StreamHandler',
                 'formatter': 'standard',
             },
@@ -47,12 +47,12 @@ def setup_logging():
             'uvicorn.access': {
                 'level': 'INFO',
             },
-            'src.whisper_streaming.online_asr': {  # Add your specific module here
+            'src.whisper_streaming': { 
                 'handlers': ['console'],
                 'level': 'DEBUG',
                 'propagate': False,
             },
-            'src.whisper_streaming.whisper_streaming': {  # Add your specific module here
+            'src.diarization': {  
                 'handlers': ['console'],
                 'level': 'DEBUG',
                 'propagate': False,
