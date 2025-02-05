@@ -42,7 +42,7 @@ class TimeStampedSegment(str):
             >>> segment = TimeStampedSegment(0.0, 1.0, "Hello")
             >>> segment.shift(1.0)
             >>> segment
-            Hello (1.0 - 2.0)
+            (1.000, 2.000, 'Hello')
         """
         self.start += shift
         self.end += shift
@@ -83,7 +83,7 @@ class TimeStampedSequence(list):
         super().__init__(segments)
         
         if sep is None:
-            self.sep = self.infer_sep()
+            self.infer_sep()
 
     def from_tuples(tuples: List[tuple]) -> 'TimeStampedSequence':
         """
@@ -96,8 +96,9 @@ class TimeStampedSequence(list):
             TimeStampedSequence: A new TimeStampedSequence instance.
 
         Example:
-            >>> TimeStampedSequence.from_tuples([(0.0, 1.0, "Hello"), (1.0, 2.0, "World")])
-            [0.0 - 1.0: Hello, 1.0 - 2.0: World]
+        >>> sequence = TimeStampedSequence.from_tuples([(0.0, 1.0, "Hello"), (1.0, 2.0, "World")])
+        >>> str(sequence)
+        '[Hello World (0.000 - 2.000)]'
         """
         return TimeStampedSequence([TimeStampedSegment(*t) for t in tuples])
 
@@ -127,16 +128,16 @@ class TimeStampedSequence(list):
             TimeStampedSegment: A single segment containing all text from the sequence.
 
         Example:
-            >>> sequence = TimeStampedSequence([TimeStampedSegment(0.0, 1.0, "Hello"), TimeStampedSegment(1.0, 2.0, "World")])
+            >>> sequence = TimeStampedSequence.from_tuples([(0.0, 1.0, "Hello"), (1.0, 2.0, "World")])
             >>> sequence.concatenate()
-            0.0 - 2.0: HelloWorld
+            (0.000, 2.000, 'Hello World')
         """
         if len(self) == 0:
             return TimeStampedSegment()
         
         
 
-        return TimeStampedSegment(self[0].start, self[-1].end, self.sep.join(segment.text for segment in self))
+        return TimeStampedSegment(self[0].start, self[-1].end, self.sep.join(segment for segment in self))
     
     def get_text(self,sep=None) -> str:
         """
@@ -146,16 +147,15 @@ class TimeStampedSequence(list):
             str: The text of all segments in the sequence.
 
         Example:
-            >>> sequence = [TimeStampedSegment(0.0, 1.0, "Hello"), TimeStampedSegment(1.0, 2.0, "World")]
+            >>> sequence = TimeStampedSequence([TimeStampedSegment(0.0, 1.0, "Hello"), TimeStampedSegment(1.0, 2.0, "World")])
             >>> sequence.get_text(sep=' ')
             'Hello World'
         """
         if sep is None:
-
             sep = self.sep
 
         
-        return sep.join(segment.text for segment in self)
+        return sep.join(segment for segment in self)
     
     def shift(self, shift: float) -> None:
         """
@@ -171,7 +171,7 @@ class TimeStampedSequence(list):
             >>> sequence = TimeStampedSequence([TimeStampedSegment(0.0, 1.0, "Hello"), TimeStampedSegment(1.0, 2.0, "World")])
             >>> sequence.shift(1.0)
             >>> sequence
-            [1.0 - 2.0: Hello, 2.0 - 3.0: World]
+            [(1.000, 2.000, 'Hello'), (2.000, 3.000, 'World')]
         """
         for segment in self:
             segment.shift(shift)
@@ -201,5 +201,7 @@ class TimeStampedSequence(list):
 
 
 if __name__ == "__main__":
+
+    logging.basicConfig(level=logging.DEBUG)
     import doctest
     doctest.testmod(verbose=True)
