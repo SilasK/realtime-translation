@@ -57,6 +57,24 @@ class TimeStampedSegment(str):
             return super().__eq__(other)
         else:
             return False
+        
+    def __lt__(self, other):
+        if isinstance(other, (int, float)):
+            return self.end < other
+        elif isinstance(other, TimeStampedSegment):
+            return self.end < other.start
+        else:
+            raise TypeError(f"unsupported operand type(s) for <: '{type(self).__name__}' and '{type(other).__name__}'")
+
+    def __gt__(self, other):
+        if isinstance(other, (int, float)):
+            return other < self.start 
+        elif isinstance(other, TimeStampedSegment):
+            return other.end < self.start
+        else:
+            raise TypeError(f"unsupported operand type(s) for >: '{type(self).__name__}' and '{type(other).__name__}'")
+
+
     
     def __add__(self, other) -> 'TimeStampedSegment':
         """
@@ -129,8 +147,15 @@ class TimeStampedSequence(list):
 
         Example:
             >>> sequence = TimeStampedSequence.from_tuples([(0.0, 1.0, "Hello"), (1.0, 2.0, "World")])
+            >>> sequence.sep==" "
+            True
             >>> sequence.concatenate()
             (0.000, 2.000, 'Hello World')
+            >>> sequence = TimeStampedSequence.from_tuples([(0.0, 1.0, "Hello "), (1.0, 2.0, "World! ")])
+            >>> sequence.sep==""
+            True
+            >>> sequence.concatenate()
+            (0.000, 2.000, 'Hello World! ')
         """
         if len(self) == 0:
             return TimeStampedSegment()
@@ -147,9 +172,11 @@ class TimeStampedSequence(list):
             str: The text of all segments in the sequence.
 
         Example:
-            >>> sequence = TimeStampedSequence([TimeStampedSegment(0.0, 1.0, "Hello"), TimeStampedSegment(1.0, 2.0, "World")])
-            >>> sequence.get_text(sep=' ')
+            >>> sequence = TimeStampedSequence.from_tuples([(0.0, 1.0, "Hello"), (1.0, 2.0, "World")])
+            >>> sequence.get_text()
             'Hello World'
+            >>> sequence.get_text(sep="_")
+            'Hello_World'
         """
         if sep is None:
             sep = self.sep
