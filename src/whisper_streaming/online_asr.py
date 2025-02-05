@@ -210,7 +210,7 @@ class OnlineASRProcessor:
         self.transcript_buffer.insert(tsw, self.buffer_time_offset)
         commited_tsw = self.transcript_buffer.flush()
 
-        
+        logger.debug(f"New commited but not final words: {commited_tsw}")
         
         if len(commited_tsw) == 0:
             return (None, None, "")
@@ -399,6 +399,8 @@ class OnlineASRProcessor:
         sep=None,
         offset=0,
     ):
+        
+        logger.warnings("Use TimeStampedSequence instead", DeprecationWarning)
         # concatenates the timestamped words or sentences into one sequence that is flushed in one line
         # sents: [(beg1, end1, "sentence1"), ...] or [] if empty
         # return: (beg1,end-of-last-sentence,"concatenation of sentences") or (None, None, "") if empty
@@ -437,6 +439,7 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
 
         model, _ = torch.hub.load(repo_or_dir="snakers4/silero-vad", model="silero_vad")
         from src.whisper_streaming.silero_vad_iterator import FixedVADIterator
+
 
         self.vac = FixedVADIterator(
             model

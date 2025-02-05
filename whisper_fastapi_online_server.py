@@ -74,7 +74,7 @@ def setup_logging():
     logging.config.dictConfig(logging_config)
 
     logger = logging.getLogger(__name__)
-    logger.info("I will log to {log_file} and to the console")
+    logger.info(f"I will log to {log_file} and to the console")
     return logger
     
 
