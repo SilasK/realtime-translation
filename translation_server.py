@@ -124,8 +124,9 @@ def main():
             try:
                 o,incomplete = transcriber.process_iter()
                 if o[0] is  None:
-                    logger.warning("No output from transcriber.")
-                    time.sleep(0.5*min_chunk)
+                    if not args.vac:
+                        logger.warning("No output from transcriber.")
+                    time.sleep(0.25*min_chunk)
                     continue
                 else:
                     log_transcript(o, start,timestamped_file=timestamped_file)
