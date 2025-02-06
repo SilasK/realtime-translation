@@ -188,7 +188,7 @@ class OnlineASRProcessor:
         if len(commited_tsw) > 0:
             
             
-            logger.debug(f"New commited words : {self.concatenate_tsw(commited_tsw)}")
+            logger.debug(f"New commited words : {self.concatenate_tsw(commited_tsw)[2]}")
 
             self.commited_not_final.extend(commited_tsw)
 
