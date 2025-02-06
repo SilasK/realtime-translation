@@ -175,6 +175,12 @@ async def websocket_endpoint(websocket: WebSocket):
         loop = asyncio.get_event_loop()
         full_transcription = ""
         beg = time()
+
+        def calculate_delay(t):
+            if t is None:
+                return np.nan
+            return time() - beg - t
+
         while True:
             try:
                 elapsed_time = int(time() - beg)
@@ -204,17 +210,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     online.insert_audio_chunk(pcm_array)
 
                     committed,uncommitted = online.process_iter()
-                    if committed[1] is None:
-                        delay = np.nan
-                    else:
-                        delay = time() - committed[1]
+           
+                    delay = calculate_delay(committed[1])
                     logger.debug(f"New committed (Delay {delay:.2f}s): {committed[2]}")
                     full_transcription += committed[2]
                     
-                    if uncommitted[1] is None:
-                        delay = np.nan
-                    else:
-                        delay = time() - uncommitted[1]
+        
+                    delay = calculate_delay(uncommitted[1])
 
                     logger.debug(f"New non-committed (Delay {delay:.2f}s): {uncommitted[2]}")
                     
