@@ -175,11 +175,12 @@ async def websocket_endpoint(websocket: WebSocket):
         loop = asyncio.get_event_loop()
         full_transcription = ""
         beg = time()
+        start_of_recording = beg
 
         def calculate_delay(t):
             if t is None:
                 return np.nan
-            return time() - beg - t
+            return time() - start_of_recording - t
 
         while True:
             try:
@@ -230,8 +231,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     # else:
                     #     buffer = online.concatenate_tsw(online.transcript_buffer.buffer)[2]
                     buffer = uncommitted[2]
-                    if (
-                        buffer in full_transcription
+                    if (( buffer !="") and (
+                        buffer in full_transcription)
                     ):  # With VAC, the buffer is not updated until the next chunk is processed
                         logger.warning(
                             "The uncommitted text is already in the full transcription."
