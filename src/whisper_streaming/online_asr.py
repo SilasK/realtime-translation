@@ -133,6 +133,7 @@ class OnlineASRProcessor:
         if offset is not None:
             self.buffer_time_offset = offset
         self.transcript_buffer.last_commited_time = self.buffer_time_offset
+        self.promt = "" 
         self.final_transcript = []
         self.commited_not_final = []
  
@@ -140,44 +141,7 @@ class OnlineASRProcessor:
     def insert_audio_chunk(self, audio):
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
-    def prompt(self):
-        """Returns a tuple: (prompt, context), where "prompt" is a 200-character suffix of commited text that is inside of the scrolled away part of audio buffer.
-        "context" is the commited text that is inside the audio buffer. It is transcribed again and skipped. It is returned only for debugging and logging reasons.
-
-        
-        """        
-        
-        if len(self.final_transcript) == 0:
-            prompt=""
-
-        if len(self.final_transcript) == 1:
-            prompt = self.final_transcript[0][2][-200:]
-        
-        else:
-            prompt = self.concatenate_tsw(self.final_transcript)[2][-200:]
-        # TODO: this is not ideal as we concatenate each time the whole transcript
-
-        # k = max(0, len(self.final_transcript) - 1)
-        # while k > 1 and self.final_transcript[k - 1][1] > self.buffer_time_offset:
-        #     k -= 1
-
-        # p = self.final_transcript[:k]
-
-        
-        # p = [t for _, _, t in p]
-        # prompt = []
-        # l = 0
-        # while p and l < 200:  # 200 characters prompt size
-        #     x = p.pop(-1)
-        #     l += len(x) + 1
-        #     prompt.append(x)
-
-        non_prompt =  self.concatenate_tsw(self.commited_not_final)[2]
-
-        logger.debug(f"PROMPT(previous): {prompt[:20]}…{prompt[-20:]} (length={len(prompt)}chars)")
-        logger.debug(f"CONTEXT: {non_prompt}")
-
-        return prompt, non_prompt
+   
         
 
     def process_iter(self):
@@ -186,14 +150,18 @@ class OnlineASRProcessor:
         The non-emty text is confirmed (committed) partial transcript.
         """
 
-        prompt, non_prompt = self.prompt()
 
         logger.debug(
             f"transcribing {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f} seconds from {self.buffer_time_offset:2.2f}"
         )
 
         ## Transcribe and format the result to [(beg,end,"word1"), ...]
-        res = self.asr.transcribe(self.audio_buffer, init_prompt=prompt)
+        
+        if len(self.promt) > 50:
+            logger.debug(f"Transcribing with prompt: {self.promt[:25]}...{self.promt[-25:]}")
+        else:
+            logger.debug(f"Transcribing with prompt: {self.promt}")
+        res = self.asr.transcribe(self.audio_buffer, init_prompt=self.promt)
         tsw = self.asr.ts_words(res)
 
 
@@ -201,21 +169,49 @@ class OnlineASRProcessor:
         self.transcript_buffer.insert(tsw, self.buffer_time_offset)
         commited_tsw = self.transcript_buffer.flush()
 
-        logger.debug(f"New commited but not final words: {commited_tsw}")
+
+
+        completed = (None, None, "")
+        if len(commited_tsw) > 0:
+            
+            new_words = self.concatenate_tsw(commited_tsw)
+            logger.debug(f"New commited words : {new_words}")
+
+            self.commited_not_final.extend(commited_tsw)
+
+
+            # Define `completed` and `incomplete` based on the buffer_trimming_way
+            # completed will be returned at the end of the function.
+            # completed is a transcribed text with (beg,end,"sentence ...") format.
+
+            completed_words = self.get_completed_words()
+
+            if len(completed_words) > 0:      
+                
+            
+                self.final_transcript.extend(completed_words) # add whole time stamped sentences / or words to commited list
+            
+
+                completed= self.concatenate_tsw(completed_words)
+                self.promt = (self.promt + completed[2])[-200:] # keep only last 200 characters
+            
+                
+        commited_but_not_final = self.concatenate_tsw(self.commited_not_final)            
+        incomplete = self.concatenate_tsw(self.transcript_buffer.complete())
+        logger.debug(f"\n    COMPLETE NOW: {completed[2]}\n"
+                    f"    COMMITTED (but not Final): {commited_but_not_final[2]}\n"
+                    f"    INCOMPLETE: {incomplete[2]}"
+                    )
         
-        if len(commited_tsw) == 0:
-            return (None, None, "")
+        
+        
+        uncommitted = commited_but_not_final+ incomplete
 
 
-        self.commited_not_final.extend(commited_tsw)
+        return completed, uncommitted
 
-
-        # Define `completed` and `the_rest` based on the buffer_trimming_way
-        # completed will be returned at the end of the function.
-        # completed is a transcribed text with (beg,end,"sentence ...") format.
-
-
-        completed = []
+    def get_completed_words(self):
+        
         if self.buffer_trimming_way == "sentence":
             
             sentences = self.words_to_sentences(self.commited_not_final)
@@ -223,8 +219,8 @@ class OnlineASRProcessor:
 
 
             if len(sentences) < 2:
-                logger.debug(f"[Sentence-segmentation] no full sentence segmented, do not commit anything.")
-                
+                logger.debug(f"[Sentence-segmentation] no full sentence segmented, do not finalize anything.")
+                return []
                 
 
             
@@ -241,7 +237,7 @@ class OnlineASRProcessor:
                 # TODO: here paragraph breaks can be added
                 self.commited_not_final = sentences[-1:]
 
-                completed= sentences[:-1]
+                return sentences[:-1]
 
             
         
@@ -252,37 +248,18 @@ class OnlineASRProcessor:
         if len(self.audio_buffer) / self.SAMPLING_RATE > self.buffer_trimming_sec :
                     
             if self.buffer_trimming_way == "sentence":
-                logger.warning(f"Chunck segment after {self.buffer_trimming_sec} seconds!"
+                logger.warning(f"Chunk segment after {self.buffer_trimming_sec} seconds!"
                                 " Even if no sentence was found!"
                             )
                     
                     
 
                 
-            completed = self.chunk_completed_segment() 
+            return self.chunk_completed_segment() 
                 
 
             
 
-        
-
-        if len(completed) == 0:      
-            return (None, None, "")
-        else:
-            self.final_transcript.extend(completed) # add whole time stamped sentences / or words to commited list
-        
-
-            completed_text_segment= self.concatenate_tsw(completed)
-            
-            the_rest = self.concatenate_tsw(self.transcript_buffer.complete())
-            commited_but_not_final = self.concatenate_tsw(self.commited_not_final)
-            logger.debug(f"\n    COMPLETE NOW: {completed_text_segment[2]}\n"
-                         f"    COMMITTED (but not Final): {commited_but_not_final[2]}\n"
-                         f"    INCOMPLETE: {the_rest[2]}"
-                         )
-
-
-            return completed_text_segment
 
 
     def chunk_completed_segment(self) -> list:
@@ -389,7 +366,8 @@ class OnlineASRProcessor:
         offset=0,
     ):
         
-        logger.warnings("Use TimeStampedSequence instead", DeprecationWarning)
+        # logger.warning("Use TimeStampedSequence instead", DeprecationWarning)
+
         # concatenates the timestamped words or sentences into one sequence that is flushed in one line
         # sents: [(beg1, end1, "sentence1"), ...] or [] if empty
         # return: (beg1,end-of-last-sentence,"concatenation of sentences") or (None, None, "") if empty

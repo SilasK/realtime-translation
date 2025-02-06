@@ -120,7 +120,7 @@ if __name__ == "__main__":
         a = load_audio(audio_path)
         online.insert_audio_chunk(a)
         try:
-            o = online.process_iter()
+            o, incomplete = online.process_iter()
         except AssertionError as e:
             logger.error(f"assertion error: {repr(e)}")
         else:
@@ -132,7 +132,7 @@ if __name__ == "__main__":
             a = load_audio_chunk(audio_path, beg, end)
             online.insert_audio_chunk(a)
             try:
-                o = online.process_iter()
+                o, incomplete = online.process_iter()
             except AssertionError as e:
                 logger.error(f"assertion error: {repr(e)}")
                 pass
@@ -164,7 +164,7 @@ if __name__ == "__main__":
             online.insert_audio_chunk(a)
 
             try:
-                o = online.process_iter()
+                o, incomplete = online.process_iter()
             except AssertionError as e:
                 logger.error(f"assertion error: {e}")
                 pass
