@@ -156,12 +156,9 @@ class OnlineASRProcessor:
         len_audio_buffer_now= len(self.audio_buffer)
         if len_audio_buffer_now == self.len_audio_buffer_last_transcribed:
             #logger.debug("No new audio data.")
-            return (None, None, "")
+            return (None, None, ""),(None, None, "")
     
         self.len_audio_buffer_last_transcribed = len_audio_buffer_now
-        logger.info(
-            f"transcribing {len_audio_buffer_now/self.SAMPLING_RATE:2.2f} seconds from {self.buffer_time_offset:2.2f}"
-        )
 
 
         logger.debug(

@@ -79,7 +79,7 @@ def main():
 
     def put_audiochunk_in_transcriber(chunk):
         transcriber.insert_audio_chunk(chunk)
-        time.sleep(0.1)
+        
 
     audio_source = AudioInput(callback= put_audiochunk_in_transcriber, source=args.input_audio, sample_rate=SAMPLING_RATE, chunk_size=min_chunk)
 
@@ -122,15 +122,17 @@ def main():
         start = time.time()
         while running:
             try:
-                o = transcriber.process_iter()
+                o,incomplete = transcriber.process_iter()
                 if o[0] is  None:
-                    #logger.debug("No output from transcriber.")
+                    logger.warning("No output from transcriber.")
+                    time.sleep(0.5*min_chunk)
                     continue
                 else:
                     log_transcript(o, start,timestamped_file=timestamped_file)
                     translation_pipeline.put_text(o[2])
             except Exception as e:
                 logger.error(f"Assertion error: {e}")
+                raise e
             
             now = time.time() - start
             logger.debug(f"Processed chunk at {now:.2f}s")
@@ -139,7 +141,7 @@ def main():
         logger.error(f"Error during processing: {e}")
     finally:
         audio_source.stop()
-        o = transcriber.finish()
+        o,incomplete = transcriber.finish()
         log_transcript(o, start,timestamped_file=timestamped_file)
         timestamped_file.close()
         translation_pipeline.put_text(o[2])
