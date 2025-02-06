@@ -47,6 +47,11 @@ def setup_logging():
             'level': 'INFO',
         },
         'loggers': {
+            'whisper_fastapi_online_server': { # Main logger
+                'handlers': ['console', 'file'],
+                'level': 'DEBUG',
+                'propagate': False,
+            },
             'uvicorn': {
                 'handlers': ['console'],
                 'level': 'INFO',
@@ -197,31 +202,50 @@ async def websocket_endpoint(websocket: WebSocket):
                     )
                     pcm_buffer = bytearray()
                     online.insert_audio_chunk(pcm_array)
-                    transcription = online.process_iter()[2]
-                    logger.debug(f"Receved new commited transcription: {transcription}")
-                    full_transcription += transcription
-                    if args.vac:
-                        buffer = online.online.concatenate_tsw(
-                            online.online.transcript_buffer.buffer
-                        )[
-                            2
-                        ]  # We need to access the underlying online object to get the buffer
+
+                    committed,uncommitted = online.process_iter()
+                    if committed[1] is None:
+                        delay = np.nan
                     else:
-                        buffer = online.concatenate_tsw(online.transcript_buffer.buffer)[2]
+                        delay = time() - committed[1]
+                    logger.debug(f"New committed (Delay {delay:.2f}s): {committed[2]}")
+                    full_transcription += committed[2]
+                    
+                    if uncommitted[1] is None:
+                        delay = np.nan
+                    else:
+                        delay = time() - uncommitted[1]
+
+                    logger.debug(f"New non-committed (Delay {delay:.2f}s): {uncommitted[2]}")
+                    
+
+                    # if args.vac:
+                    #     buffer = online.online.concatenate_tsw(
+                    #         online.online.transcript_buffer.buffer
+                    #     )[
+                    #         2
+                    #     ]  # We need to access the underlying online object to get the buffer
+                    # else:
+                    #     buffer = online.concatenate_tsw(online.transcript_buffer.buffer)[2]
+                    buffer = uncommitted[2]
                     if (
                         buffer in full_transcription
                     ):  # With VAC, the buffer is not updated until the next chunk is processed
+                        logger.warning(
+                            "The uncommitted text is already in the full transcription."
+                        )
                         buffer = ""
 
-                    logger.debug(f"New noncommited: {buffer}")
+
+                    
                     await websocket.send_json(
-                        {"transcription": transcription, "buffer": buffer}
+                        {"transcription": committed[2], "buffer": buffer}
                     )
             except Exception as e:
-                print(f"Exception in ffmpeg_stdout_reader: {e}")
+                logger.critical(f"Exception in ffmpeg_stdout_reader: {e}")
                 break
 
-        print("Exiting ffmpeg_stdout_reader...")
+        logger.error("Exiting ffmpeg_stdout_reader...")
 
     stdout_reader_task = asyncio.create_task(ffmpeg_stdout_reader())
 
@@ -259,6 +283,6 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "whisper_fastapi_online_server:app", host=args.host, port=args.port, reload=True,
+        "whisper_fastapi_online_server:app", host=args.host, port=args.port, reload=False,
         log_level="info"
     )
