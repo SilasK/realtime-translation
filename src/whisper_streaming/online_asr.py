@@ -187,8 +187,8 @@ class OnlineASRProcessor:
         completed = (None, None, "")
         if len(commited_tsw) > 0:
             
-            new_words = self.concatenate_tsw(commited_tsw)
-            logger.debug(f"New commited words : {new_words}")
+            
+            logger.debug(f"New commited words : {self.concatenate_tsw(commited_tsw)}")
 
             self.commited_not_final.extend(commited_tsw)
 
@@ -207,21 +207,38 @@ class OnlineASRProcessor:
 
                 completed= self.concatenate_tsw(completed_words)
                 self.promt = (self.promt + completed[2])[-200:] # keep only last 200 characters
-            
-                
+        
+        
+        
         commited_but_not_final = self.concatenate_tsw(self.commited_not_final)            
         incomplete = self.concatenate_tsw(self.transcript_buffer.complete())
+                
+
         logger.debug(f"\n    COMPLETE NOW: {completed[2]}\n"
                     f"    COMMITTED (but not Final): {commited_but_not_final[2]}\n"
                     f"    INCOMPLETE: {incomplete[2]}"
                     )
+        uncommitted = self.concat_two_segments(commited_but_not_final, incomplete)
+
         
-        
-        
-        uncommitted = commited_but_not_final+ incomplete
+
 
 
         return completed, uncommitted
+    
+    def concat_two_segments(self,first, second):
+        """Concatenate two segments into one segment, check if one is None.
+        This function will be replaced by simply + of TimeStampedSequence objects."""
+        
+        if first[1] is None:
+            res = second # if second is also None, it will return (None, None, "")
+        elif second[1] is None:
+            res = first
+        else:
+            res = self.concatenate_tsw([first, second])
+
+        return res
+
 
     def get_completed_words(self):
         
@@ -258,7 +275,9 @@ class OnlineASRProcessor:
 
             # break audio buffer anyway if it is too long
 
-        if len(self.audio_buffer) / self.SAMPLING_RATE > self.buffer_trimming_sec :
+        if len(self.audio_buffer) / self.SAMPLING_RATE < self.buffer_trimming_sec :
+            return []
+        else:
                     
             if self.buffer_trimming_way == "sentence":
                 logger.warning(f"Chunk segment after {self.buffer_trimming_sec} seconds!"
@@ -365,12 +384,16 @@ class OnlineASRProcessor:
         """Flush the incomplete text when the whole processing ends.
         Returns: the same format as self.process_iter()
         """
-        o = self.transcript_buffer.complete()
-        f = self.concatenate_tsw(o)
-        if f[1] is not None:
-            logger.debug(f"last, noncommited: {f[0]*1000:.0f}-{f[1]*1000:.0f}: {f[2]}")
+        incomplete_words = self.transcript_buffer.complete()
+        incomplete = self.concatenate_tsw(incomplete_words)
+        if incomplete[1] is not None:
+            logger.debug(f"I finish. Commit non-commited: {incomplete[0]*1000:.0f}-{incomplete[1]*1000:.0f}: {incomplete[2]}")
         self.buffer_time_offset += len(self.audio_buffer) / 16000
-        return f
+
+        uncommitted = self.concat_two_segments(self.concatenate_tsw(self.commited_not_final), incomplete)
+
+
+        return uncommitted, (None, None, "")
 
     def concatenate_tsw(
         self,
@@ -496,14 +519,12 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
             > self.SAMPLING_RATE * self.online_chunk_size
         ):
             self.current_online_chunk_buffer_size = 0
-            ret = self.online.process_iter()
-            return ret
+            return self.online.process_iter()
         else:
             logger.debug("no online update, only VAD")
-            return (None, None, "")
+            return (None, None, ""),(None, None, "")
 
     def finish(self):
-        ret = self.online.finish()
         self.current_online_chunk_buffer_size = 0
         self.is_currently_final = False
-        return ret
+        return self.online.finish()
