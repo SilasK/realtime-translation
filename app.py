@@ -20,11 +20,14 @@ CONFIG_FILE = "translation_server_config.yaml"
 
 
 
+args = server.load_config(CONFIG_FILE)
 
-translation_server_arguments = server.initialize(CONFIG_FILE,log_to_console=False,log_to_web=True)
+target_languages = args.target_languages
+
+translation_server_arguments = server.initialize(args,log_to_console=False,log_to_web=True)
 
 def start_translation_pipeline():
-    server.main_loop(*translation_server_arguments)
+    server.main_loop(args,*translation_server_arguments)
 
 
 app = Flask(__name__)

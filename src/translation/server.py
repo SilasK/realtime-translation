@@ -31,7 +31,7 @@ def load_config(config_file: str) -> argparse.Namespace:
 
 
 
-def initialize(config_file,log_to_console=True,
+def initialize(args,log_to_console=True,
     log_to_web= False ):
 
     logging.info("Initializing translation pipeline.")
@@ -39,7 +39,7 @@ def initialize(config_file,log_to_console=True,
 
 
 
-    args = load_config(config_file)
+    
 
 
     # initialize_asr
@@ -82,7 +82,7 @@ def initialize(config_file,log_to_console=True,
 
     logger.info("Everything set up!")
 
-    return args,audio_source, transcriber, translation_pipeline, timestamped_file, min_chunk
+    return audio_source, transcriber, translation_pipeline, timestamped_file, min_chunk
 
 
 ### Main loop   
