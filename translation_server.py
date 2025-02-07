@@ -88,7 +88,8 @@ def main():
     # initialize_translation_pipeline
     output_folder = Path("translations")
     output_folder.mkdir(exist_ok=True, parents=True)
-    translation_pipeline = TranslationPipeline(args.lan, args.target_languages, output_folder=output_folder
+    translation_pipeline = TranslationPipeline(args.lan, args.target_languages, 
+    output_folder=output_folder
     )
     translation_pipeline.start()
 
@@ -126,7 +127,7 @@ def main():
                 if o[0] is  None:
                     if not args.vac:
                         logger.warning("No output from transcriber.")
-                    time.sleep(0.25*min_chunk)
+                    time.sleep(0.7*min_chunk)
                     continue
                 else:
                     log_transcript(o, start,timestamped_file=timestamped_file)
