@@ -89,11 +89,65 @@ class FileOutputStream(TextOutputStreamBase):
     def stop(self):
         self.outfile.close()
 
+from queue import Queue
+from threading import Lock
+
+class WebOutputStream(TextOutputStreamBase):
+    # Class-level storage for all language streams
+    _streams: Dict[str, 'WebOutputStream'] = {}
+    _lock = Lock()
+
+    def __init__(self, language: str,sep=""):
+        super().__init__(language)
+        self.queue = Queue()
+        self.buffer = []
+        self.sep = sep
+        
+        # Register this stream instance
+        with self._lock:
+            WebOutputStream._streams[language] = self
+            logger.debug(f"Created WebOutputStream for language: {language}")
+
+    def write(self, translated_text: str):
+        """Write translated text to queue and buffer"""
+        self.queue.put(translated_text)
+        self.buffer.append(translated_text)
+        logger.debug(f"WebOutputStream for language {self.language} send new content: {translated_text}")
+
+    def get_new_content(self) -> str:
+        """Get new content since last check"""
+        content = []
+        while not self.queue.empty():
+            content.append(self.queue.get())
+        return self.sep.join(content)
+
+    def get_full_content(self) -> str:
+        """Get all content from buffer"""
+        return self.sep.join(self.buffer)
+
+    @classmethod
+    def get_stream(cls, language: str) -> Optional['WebOutputStream']:
+        """Get stream for specific language"""
+        return cls._streams.get(language)
+
+    @classmethod
+    def get_available_languages(cls) -> list[str]:
+        """Get list of available language streams"""
+        return list(cls._streams.keys())
+
+    def stop(self):
+        """Clean up resources"""
+        with self._lock:
+            if self.language in self._streams:
+                del self._streams[self.language]
+        logger.debug(f"Stopped WebOutputStream for language: {self.language}")
 
 class OnlineTranslator():
     
     def __init__(self, model,src_lang,tgt_lang,
                  output_file: Optional[Path | str] = None,
+                 log_to_console: bool = True,
+                 write_to_web: bool = False,
                  **inference_ksw):
         
         self.model = model  # Just store the reference to the model
@@ -101,11 +155,16 @@ class OnlineTranslator():
         self.src_lang = src_lang
         self.tgt_lang = tgt_lang
 
-        if output_file is None:
-            self.output_stream = ConsoleOutputStream(tgt_lang)
-        else:
-            self.output_stream = FileOutputStream(output_file,tgt_lang)
+        self.output_streams = []
 
+        if output_file is not None:
+            self.output_streams.append(FileOutputStream(output_file,language=tgt_lang) )
+        if log_to_console:
+            self.output_streams.append(ConsoleOutputStream(tgt_lang))
+        if write_to_web:
+            self.output_streams.append(WebOutputStream(tgt_lang))
+        
+        assert len(self.output_streams) > 0, "No output stream defined"
 
         self.tokenizer = M2M100Tokenizer.from_pretrained(TRANSLATION_MODEL, src_lang=src_lang,tgt_lang=tgt_lang)
 
@@ -135,12 +194,14 @@ class OnlineTranslator():
     def translate_to_output(self, tokenized_text: torch.Tensor) -> None:
         translation = self.translate_tokenized_text(tokenized_text)
 
-        self.output_stream.write(translation)
+        for output_stream in self.output_streams:
+            output_stream.write(translation)
 
         
 
     def stop(self):
-        self.output_stream.stop()
+        for output_stream in self.output_streams:
+            output_stream.stop()
 
 
 
@@ -155,7 +216,10 @@ class OnlineTranslator():
 
 class TranslationPipeline():
 
-    def __init__(self,src_lang,target_languages: List[str],output_folder: Optional[Path | str ] = None):
+    def __init__(self,src_lang,target_languages: List[str],output_folder: Optional[Path | str ] = None,log_to_console: bool = True,log_to_web: bool = False):
+
+
+        self.should_run = False
 
         signal.signal(signal.SIGINT, lambda s, f: self.stop())
 
@@ -168,16 +232,24 @@ class TranslationPipeline():
         self.src_lang = src_lang
         self.tokenizer = M2M100Tokenizer.from_pretrained(TRANSLATION_MODEL, src_lang=self.src_lang)
 
+
+        self.original_output_streams = []
+        if log_to_console:
+            self.original_output_streams.append(ConsoleOutputStream(src_lang,console_color=36))
+
+        if log_to_web:
+            self.original_output_streams.append(WebOutputStream(src_lang))
+
         # Create Output folder if specified
         if output_folder is not None:
             output_folder = Path(output_folder)
             output_folder.mkdir(parents=True, exist_ok=True)
+ 
 
-            self.original_output_stream = FileOutputStream(output_folder / f"original_{src_lang}.md",src_lang)
-        
-        else:
-            output_file = None
-            self.original_output_stream = ConsoleOutputStream(src_lang,console_color=36)
+            self.original_output_streams.append( FileOutputStream(output_folder / f"original_{src_lang}.md",src_lang))
+
+
+
 
         self.translators = []
         for lang in target_languages:
@@ -185,13 +257,17 @@ class TranslationPipeline():
 
             if output_folder is not None:
                 output_file = output_folder / f"translation_{lang}.md"
+            else:
+                output_file = None
 
                 
 
             self.translators.append(OnlineTranslator(self.model,
                                                     src_lang=src_lang,
                                                  tgt_lang=lang,
-                                                 output_file=output_file
+                                                 output_file=output_file,
+                                                    log_to_console=log_to_console,
+                                                    write_to_web=log_to_web
                                                  ))
 
         # Set up translation queue
@@ -236,7 +312,9 @@ class TranslationPipeline():
 
             logger.info("Stopping translation pipeline. Waiting for threads to finish...")
 
-            self.original_output_stream.stop()
+            for output_stream in self.original_output_streams:
+                output_stream.stop()
+            
             self.should_run = False
             self.translation_thread.join()
 
@@ -251,7 +329,9 @@ class TranslationPipeline():
 
     def put_text(self,text:str):
 
-        self.original_output_stream.write(text)
+        for output_stream in self.original_output_streams:
+            output_stream.write(text)
+        
 
         tokenized_text = self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
 

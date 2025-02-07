@@ -2,6 +2,8 @@
 import logging
 from loguru import logger
 
+import time
+
 class InterceptHandler(logging.Handler):
     def emit(self, record):
         # Get corresponding Loguru level if it exists
@@ -24,3 +26,18 @@ def add_other_loggers(other_modules: list, level="DEBUG"):
         logging.getLogger(module).handlers = [InterceptHandler()]
         logging.getLogger(module).setLevel(getattr(logging, level))
     
+
+
+
+def log_transcript(o, start, now=None, timestamped_file = None):
+    if o[0] is None:
+        return
+    if now is None:
+        now = time.time() - start
+    
+    log_string = f"{now:7.3f}, {o[0]:7.3f}-{o[1]:7.3f} ({(now-o[1]):+2.1f}s): {o[2]}"
+    logger.info(log_string)
+    if timestamped_file is not None:
+        timestamped_file.write(log_string + "\n")
+        timestamped_file.flush()
+        

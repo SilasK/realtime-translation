@@ -518,7 +518,7 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
             self.current_online_chunk_buffer_size = 0
             return self.online.process_iter()
         else:
-            logger.debug("no online update, only VAD")
+            # logger.debug("no online update, only VAD")
             return (None, None, ""),(None, None, "")
 
     def finish(self):

@@ -17,6 +17,7 @@ buffer_trimming_sec: 12
 buffer_trimming: sentence
 log_level: DEBUG
 
+output_dir: "translations"
 
 
 start_at: 0

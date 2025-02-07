@@ -4,6 +4,7 @@ import logging
 import io
 import soundfile as sf
 import math
+from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,22 @@ class ASRBase:
 
     def use_vad(self):
         raise NotImplemented("must be implemented in the child class")
+    
+
+    def transcribe_file(self, audio_file: str|Path, init_prompt=""):
+        audio_file = Path(audio_file)
+        assert audio_file.exists(), f"Audio file {audio_file} does not exist."
+
+        from ..whisper.audio import load_audio
+
+        audio = load_audio(audio_file)
+        return self.transcribe(audio, init_prompt)
+
+
+
+
+
+
 
 
 class WhisperTimestampedASR(ASRBase):
