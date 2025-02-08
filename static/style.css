@@ -1,10 +1,12 @@
-
 :root {
     --bg-color: #f8f8f8;
     --text-color: #2a0000;
 }
 
-body {
+
+html, body {
+    height: 100%;
+    flex-direction: column;
     font-size: 16pt;
     font-family: Merriweather, 'Gentium plus', 'Roboto sherif', 'Untitled sherif',Georgia, serif;
     margin: 0;
@@ -12,6 +14,7 @@ body {
     background-color: var(--bg-color);
     color: var(--text-color);
 }
+
 
 header, main {
     text-align: center;
@@ -53,41 +56,42 @@ p {
     background-color: #63211a;
 }
 
+/* The translation box fills the remaining space */
 .translation-box {
     position: relative;
     background: var(--bg-color);
-    border: none;
-    height: 400px;
     overflow-y: auto;
     padding: 20px;
     text-align: left;
 }
 
 /* Add gradient to top and bottom of translation box */
-.translation-box::before {
+/*  Doesn't work as expected 
+.body::before {
     content: "";
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
-    height: 30px; /* adjust as needed */
-    background: linear-gradient(to bottom, var(--bg-color), transparent);
+    height: 30px; 
+    background: linear-gradient(to bottom, transparent,var(--bg-color));
     pointer-events: none;
 }
 
-.translation-box::after {
+
+.body::after {
     content: "";
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 30px; /* adjust as needed */
-    background: linear-gradient(to top, var(--bg-color), transparent);
+    height: 30px; 
+    background: linear-gradient(to top, transparent,var(--bg-color));
     pointer-events: none;
-    transform: rotate(180deg);
-}
+} 
+*/
 
-
+*/
 .new-update {
     color: rgb(1, 58, 5);
 }

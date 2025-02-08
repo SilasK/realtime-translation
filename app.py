@@ -10,7 +10,7 @@ CONFIG_FILE = "translation_server_config.yaml"
 
 args = server.load_config(CONFIG_FILE)
 # subset only to the languages that are supported by the translation pipeline
-LanguageName = {l: LanguageName[l] for l in args.target_languages}
+LanguageName = {l: LanguageName[l] for l in [args.lan] + args.target_languages}
 
 translation_server_arguments = server.initialize(args, log_to_console=False, log_to_web=True)
 
