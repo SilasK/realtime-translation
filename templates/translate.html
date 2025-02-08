@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{ language_name }} Translations</title>
+    <title>{{ language_name }}</title>
     <link rel="stylesheet" href="/static/style.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
     <header>
-        <h1>{{ language_name }} Translations</h1>
+        <h1>{{ language_name }}</h1>
     </header>
     <main>
         <div id="translationBox" class="translation-box"></div>
@@ -38,16 +38,18 @@
             .then(data => {
                 if (data.text) {
                     const wasAtBottom = isScrolledToBottom();
-                    // Create a temporary element for new update with special styling.
+                    
+                    // Remove new-update class from any previous update
+                    const previousUpdates = translationBox.querySelectorAll(".new-update");
+                    previousUpdates.forEach(elem => {
+                        elem.classList.remove("new-update");
+                    });
+                    
+                    // Create a new element for the latest update
                     const updateElem = document.createElement("span");
                     updateElem.classList.add("new-update");
                     updateElem.innerHTML = data.text;
                     translationBox.appendChild(updateElem);
-                    
-                    // After a delay, remove the special styling.
-                    setTimeout(() => {
-                        updateElem.classList.remove("new-update");
-                    }, 2000); // delay can be adjusted
                     
                     // If user was at bottom, scroll down.
                     if (wasAtBottom) {
