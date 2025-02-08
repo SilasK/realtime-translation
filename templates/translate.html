@@ -28,6 +28,32 @@
             });
         }
 
+        // Custom smooth scroll function
+        function smoothScrollTo(element, target, duration) {
+            const start = element.scrollTop;
+            const change = target - start;
+            const startTime = performance.now();
+
+            function animateScroll(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                // Use easeInOutQuad easing for a smoother effect
+                const easedProgress = progress < 0.5 ?
+                    2 * progress * progress :
+                    -1 + (4 - 2 * progress) * progress;
+                element.scrollTop = start + change * easedProgress;
+                if (elapsed < duration) {
+                    requestAnimationFrame(animateScroll);
+                }
+            }
+            requestAnimationFrame(animateScroll);
+        }
+
+
+        // Helper to check if scrolled to bottom
+        function isScrolledToBottom() {
+            return translationBox.scrollHeight - translationBox.clientHeight <= translationBox.scrollTop + 1;
+        }
 
         // Function to stream text letter-by-letter into an element.
         function streamText(text, elem, callback) {
@@ -44,36 +70,47 @@
             streamLetter();
         }
 
-        // Function to process new update letter-by-letter.
+        // Function to process a new update letter-by-letter.
         function processUpdate(newText) {
             streamingInProgress = true;
-            // Create a new element for the latest update.
+
+            // Remove the new-update class from any previous update elements as soon as a new update arrives.
+            const previousUpdates = translationBox.querySelectorAll(".new-update");
+            previousUpdates.forEach(elem => {
+                elem.classList.remove("new-update");
+            });
+
+            const wasAtBottom = isScrolledToBottom();
+            // Create new element for latest update.
             const updateElem = document.createElement("span");
             updateElem.classList.add("new-update");
             translationBox.appendChild(updateElem);
 
-
             streamText(newText, updateElem, () => {
-                // After streaming, remove the new-update class.
-                updateElem.classList.remove("new-update");
+                // Do not remove "new-update" class here;
+                // leave it until a subsequent update arrives.
                 streamingInProgress = false;
-                // If new update content was queued during streaming, process it.
+                // If a new update was queued while streaming, process it next.
                 if (updateQueue.length > 0) {
                     const queuedText = updateQueue;
                     updateQueue = "";
                     processUpdate(queuedText);
+                /* I am not shure I should make autoscrolling
+                
+                if (wasAtBottom) {
+                    smoothScrollTo(translationBox, translationBox.scrollHeight, 800); // 800ms duration
                 }
-
+                    */  
             });
         }
 
-        // Poll new translation increments letter-by-letter
+        // Poll new translation increments letter-by-letter.
         function pollUpdates() {
             fetch(`/translations/${language}`)
             .then(response => response.json())
             .then(data => {
                 if (data.text) {
-                    // If streaming is already in progress, queue the new text.
+                    // If streaming is in progress, queue the new update.
                     if (streamingInProgress) {
                         updateQueue += data.text;
                     } else {
@@ -84,9 +121,9 @@
             .catch(err => console.log("Update error:", err));
         }
 
-        // Load full content once page loads
+        // Load full content once page loads.
         loadFullContent();
-        // Start polling every second
+        // Start polling every second.
         setInterval(pollUpdates, 1000);
     </script>
 </body>
