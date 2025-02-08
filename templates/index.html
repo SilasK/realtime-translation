@@ -1,58 +1,24 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Translation Stream</title>
-    <style>
-        .translation-box {
-            height: 400px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
-            margin: 10px;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <title>Speak-to-Translated Pipeline</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-    <div id="language-buttons">
-        <button onclick="selectLanguage('en')">English</button>
-        <button onclick="selectLanguage('de')">Spanish</button>
-        <button onclick="selectLanguage('fr')">French</button>
-    </div>
-    <div id="translations" class="translation-box"></div>
-
-    <script>
-        let currentLanguage = null;
-        let isPolling = false;
-
-        function selectLanguage(lang) {
-            currentLanguage = lang;
-            document.getElementById('translations').innerHTML = '';
-            if (!isPolling) startPolling();
-        }
-
-        function startPolling() {
-            isPolling = true;
-            setInterval(updateTranslations, 1000);
-        }
-
-        function updateTranslations() {
-            if (!currentLanguage) return;
-            
-            fetch(`/translations/${currentLanguage}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.text) {
-                        const translationDiv = document.getElementById('translations');
-                        const wasScrolledToBottom = translationDiv.scrollHeight - translationDiv.clientHeight <= translationDiv.scrollTop + 1;
-                        
-                        translationDiv.innerHTML += data.text;
-                        
-                        if (wasScrolledToBottom) {
-                            translationDiv.scrollTop = translationDiv.scrollHeight;
-                        }
-                    }
-                });
-        }
-    </script>
+    <header>
+        <h1>Speak-to-Translated Pipeline</h1>
+        <p>Select a target language to view live translations.</p>
+    </header>
+    <main>
+        <div class="button-container">
+            {% for code, name in language_names.items() %}
+                <a class="lang-button" href="/translate/{{ code }}">
+                    {{ name }}
+                </a>
+            {% endfor %}
+        </div>
+    </main>
 </body>
 </html>

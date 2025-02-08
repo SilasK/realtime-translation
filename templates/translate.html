@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ language_name }} Translations</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <header>
+        <h1>{{ language_name }} Translations</h1>
+    </header>
+    <main>
+        <div id="translationBox" class="translation-box"></div>
+    </main>
+    <script>
+        const language = "{{ language }}";
+        const translationBox = document.getElementById("translationBox");
+
+        // On load, fetch full buffer
+        function loadFullContent() {
+            fetch(`/translations/${language}?full=true`)
+            .then(response => response.json())
+            .then(data => {
+                translationBox.innerHTML = data.text;
+            });
+        }
+
+        // Helper to check if scrolled to bottom
+        function isScrolledToBottom() {
+            return translationBox.scrollHeight - translationBox.clientHeight <= translationBox.scrollTop + 1;
+        }
+
+        // Poll new translation increments
+        function pollUpdates() {
+            fetch(`/translations/${language}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.text) {
+                    const wasAtBottom = isScrolledToBottom();
+                    // Create a temporary element for new update with special styling.
+                    const updateElem = document.createElement("span");
+                    updateElem.classList.add("new-update");
+                    updateElem.innerHTML = data.text;
+                    translationBox.appendChild(updateElem);
+                    
+                    // After a delay, remove the special styling.
+                    setTimeout(() => {
+                        updateElem.classList.remove("new-update");
+                    }, 2000); // delay can be adjusted
+                    
+                    // If user was at bottom, scroll down.
+                    if (wasAtBottom) {
+                        translationBox.scrollTop = translationBox.scrollHeight;
+                    }
+                }
+            })
+            .catch(err => console.log("Update error:", err));
+        }
+
+        // Load full content once page loads
+        loadFullContent();
+        // Start polling every second
+        setInterval(pollUpdates, 1000);
+    </script>
+</body>
+</html>

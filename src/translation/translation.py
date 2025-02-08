@@ -26,7 +26,9 @@ def define_torch_device():
         return "cpu"
     
 
-TRANSLATION_MODEL = "facebook/m2m100_418M"
+TRANSLATION_MODEL = "facebook/m2m100_1.2B" 
+#"facebook/m2m100_418M"
+
 TORCH_DEVICE = define_torch_device()
 logger.info(f"Using torch device: {TORCH_DEVICE}")
 
@@ -97,7 +99,7 @@ class WebOutputStream(TextOutputStreamBase):
     _streams: Dict[str, 'WebOutputStream'] = {}
     _lock = Lock()
 
-    def __init__(self, language: str,sep=""):
+    def __init__(self, language: str,sep=" "):
         super().__init__(language)
         self.queue = Queue()
         self.buffer = []
@@ -289,6 +291,8 @@ class TranslationPipeline():
             try:
                 T, tokenized_text = self.translation_queue.get(timeout=1)
             except queue.Empty:
+                logger.debug("Translation queue is empty")
+                time.sleep(0.5)
                 continue
 
             T.translate_to_output(tokenized_text)
@@ -340,6 +344,108 @@ class TranslationPipeline():
 
         
 
+LanguageName = {
+    "af": "Afrikaans",
+    "am": "አማርኛ",
+    "ar": "العربية",
+    "ast": "Asturianu",
+    "az": "Azərbaycan",
+    "ba": "Башҡортса",
+    "be": "Беларуская",
+    "bg": "Български",
+    "bn": "বাংলা",
+    "br": "Brezhoneg",
+    "bs": "Bosanski",
+    "ca": "Català",
+    "ceb": "Cebuano",
+    "cs": "Čeština",
+    "cy": "Cymraeg",
+    "da": "Dansk",
+    "de": "Deutsch",
+    "el": "Ελληνικά",
+    "en": "English",
+    "es": "Español",
+    "et": "Eesti",
+    "fa": "فارسی",
+    "ff": "Pulaar",
+    "fi": "Suomi",
+    "fr": "Français",
+    "fy": "Frysk",
+    "ga": "Gaeilge",
+    "gd": "Gàidhlig",
+    "gl": "Galego",
+    "gu": "ગુજરાતી",
+    "ha": "Hausa",
+    "he": "עברית",
+    "hi": "हिन्दी",
+    "hr": "Hrvatski",
+    "ht": "Kreyòl Ayisyen",
+    "hu": "Magyar",
+    "hy": "Հայերեն",
+    "id": "Bahasa Indonesia",
+    "ig": "Igbo",
+    "ilo": "Ilokano",
+    "is": "Íslenska",
+    "it": "Italiano",
+    "ja": "日本語",
+    "jv": "Basa Jawa",
+    "ka": "ქართული",
+    "kk": "Қазақ тілі",
+    "km": "ខ្មែរ",
+    "kn": "ಕನ್ನಡ",
+    "ko": "한국어",
+    "lb": "Lëtzebuergesch",
+    "lg": "Luganda",
+    "ln": "Lingála",
+    "lo": "ລາວ",
+    "lt": "Lietuvių",
+    "lv": "Latviešu",
+    "mg": "Malagasy",
+    "mk": "Македонски",
+    "ml": "മലയാളം",
+    "mn": "Монгол",
+    "mr": "मराठी",
+    "ms": "Bahasa Melayu",
+    "my": "မြန်မာ",
+    "ne": "नेपाली",
+    "nl": "Nederlands",
+    "no": "Norsk",
+    "ns": "Sesotho sa Leboa",
+    "oc": "Occitan",
+    "or": "ଓଡ଼ିଆ",
+    "pa": "ਪੰਜਾਬੀ",
+    "pl": "Polski",
+    "ps": "پښتو",
+    "pt": "Português",
+    "ro": "Română",
+    "ru": "Русский",
+    "sd": "سنڌي",
+    "si": "සිංහල",
+    "sk": "Slovenčina",
+    "sl": "Slovenščina",
+    "so": "Soomaali",
+    "sq": "Shqip",
+    "sr": "Српски",
+    "ss": "SiSwati",
+    "su": "Basa Sunda",
+    "sv": "Svenska",
+    "sw": "Kiswahili",
+    "ta": "தமிழ்",
+    "th": "ไทย",
+    "tl": "Tagalog",
+    "tn": "Setswana",
+    "tr": "Türkçe",
+    "uk": "Українська",
+    "ur": "اردو",
+    "uz": "Oʻzbek",
+    "vi": "Tiếng Việt",
+    "wo": "Wolof",
+    "xh": "isiXhosa",
+    "yi": "ייִדיש",
+    "yo": "Yorùbá",
+    "zh": "中文",
+    "zu": "isiZulu"
+}
 
 
 
