@@ -16,6 +16,8 @@
     <script>
         const language = "{{ language }}";
         const translationBox = document.getElementById("translationBox");
+        let streamingInProgress = false;
+        let updateQueue = "";
 
         // On load, fetch full buffer
         function loadFullContent() {
@@ -26,34 +28,56 @@
             });
         }
 
-        // Helper to check if scrolled to bottom
-        function isScrolledToBottom() {
-            return translationBox.scrollHeight - translationBox.clientHeight <= translationBox.scrollTop + 1;
+
+        // Function to stream text letter-by-letter into an element.
+        function streamText(text, elem, callback) {
+            let index = 0;
+            function streamLetter() {
+                if (index < text.length) {
+                    elem.innerHTML += text[index];
+                    index++;
+                    setTimeout(streamLetter, 50); // Adjust speed as needed
+                } else if (callback) {
+                    callback();
+                }
+            }
+            streamLetter();
         }
 
-        // Poll new translation increments
+        // Function to process new update letter-by-letter.
+        function processUpdate(newText) {
+            streamingInProgress = true;
+            // Create a new element for the latest update.
+            const updateElem = document.createElement("span");
+            updateElem.classList.add("new-update");
+            translationBox.appendChild(updateElem);
+
+
+            streamText(newText, updateElem, () => {
+                // After streaming, remove the new-update class.
+                updateElem.classList.remove("new-update");
+                streamingInProgress = false;
+                // If new update content was queued during streaming, process it.
+                if (updateQueue.length > 0) {
+                    const queuedText = updateQueue;
+                    updateQueue = "";
+                    processUpdate(queuedText);
+                }
+
+            });
+        }
+
+        // Poll new translation increments letter-by-letter
         function pollUpdates() {
             fetch(`/translations/${language}`)
             .then(response => response.json())
             .then(data => {
                 if (data.text) {
-                    const wasAtBottom = isScrolledToBottom();
-                    
-                    // Remove new-update class from any previous update
-                    const previousUpdates = translationBox.querySelectorAll(".new-update");
-                    previousUpdates.forEach(elem => {
-                        elem.classList.remove("new-update");
-                    });
-                    
-                    // Create a new element for the latest update
-                    const updateElem = document.createElement("span");
-                    updateElem.classList.add("new-update");
-                    updateElem.innerHTML = data.text;
-                    translationBox.appendChild(updateElem);
-                    
-                    // If user was at bottom, scroll down.
-                    if (wasAtBottom) {
-                        translationBox.scrollTop = translationBox.scrollHeight;
+                    // If streaming is already in progress, queue the new text.
+                    if (streamingInProgress) {
+                        updateQueue += data.text;
+                    } else {
+                        processUpdate(data.text);
                     }
                 }
             })
