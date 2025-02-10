@@ -1,3 +1,5 @@
+@import "https://cdn.jsdelivr.net/npm/bulma@1.0.3/css/bulma.min.css";
+
 :root {
     --bg-color: #f8f8f8;
     --text-color: #2a0000;
@@ -7,7 +9,7 @@
 html, body {
     height: 100%;
     flex-direction: column;
-    font-size: 16pt;
+    font-size: 14pt;
     font-family: Merriweather, 'Gentium plus', 'Roboto sherif', 'Untitled sherif',Georgia, serif;
     margin: 0;
     padding: 0;
@@ -26,35 +28,6 @@ h1 {
     margin-bottom: 5px;
 }
 
-p {
-    font-size: 1.2em;
-    color: #666;
-}
-
-.button-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-top: 20px;
-}
-
-.lang-button {
-    background-color: #520e06;
-    color: var(--bg-color);
-    padding: 15px 25px;
-    margin: 10px;
-    text-decoration: none;
-    font-size: 1.2em;
-    border-radius: 8px;
-    transition: background-color 0.3s ease;
-    flex: 1 0 40%;
-    max-width: 250px;
-    min-width: 150px;
-}
-
-.lang-button:hover {
-    background-color: #63211a;
-}
 
 /* The translation box fills the remaining space */
 .translation-box {
@@ -65,33 +38,28 @@ p {
     text-align: left;
 }
 
-/* Add gradient to top and bottom of translation box */
-/*  Doesn't work as expected 
-.body::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 30px; 
-    background: linear-gradient(to bottom, transparent,var(--bg-color));
-    pointer-events: none;
+
+/*main::before,*/
+main::after {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 4rem;
+  pointer-events: none;
+  z-index: 500;
 }
 
 
-.body::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 30px; 
-    background: linear-gradient(to top, transparent,var(--bg-color));
-    pointer-events: none;
-} 
+/* Top gradient: The navbar changes in
+/*
+main::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--bg-color), transparent);
+}
 */
-
-*/
-.new-update {
-    color: rgb(1, 58, 5);
+/* Bottom gradient: positioned above where a footer might be */
+main::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--bg-color), transparent);
 }

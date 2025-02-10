@@ -134,3 +134,4 @@ run_*.sh
 mydata/
 translations/
 logs/
+frontend_test

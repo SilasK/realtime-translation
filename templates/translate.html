@@ -1,132 +1,99 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ language_name }}</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-
-    <header>
-        <h1>{{ language_name }}</h1>
-        // <p>Some top text here.</p>
-    </header>
-        <div id="translationBox" class="translation-box"></div>
-    </main>
-    <script>
-        const language = "{{ language }}";
-        const translationBox = document.getElementById("translationBox");
-        let streamingInProgress = false;
-        let updateQueue = "";
-
-        // On load, fetch full buffer
-        function loadFullContent() {
-            fetch(`/translations/${language}?full=true`)
-            .then(response => response.json())
-            .then(data => {
-                translationBox.innerHTML = data.text;
-            });
-        }
-
-        // Custom smooth scroll function
-        function smoothScrollTo(element, target, duration) {
-            const start = element.scrollTop;
-            const change = target - start;
-            const startTime = performance.now();
-
-            function animateScroll(currentTime) {
-                const elapsed = currentTime - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-                // Use easeInOutQuad easing for a smoother effect
-                const easedProgress = progress < 0.5 ?
-                    2 * progress * progress :
-                    -1 + (4 - 2 * progress) * progress;
-                element.scrollTop = start + change * easedProgress;
-                if (elapsed < duration) {
-                    requestAnimationFrame(animateScroll);
-                }
-            }
-            requestAnimationFrame(animateScroll);
-        }
+    <link rel="stylesheet" href="style.css">
+    
+    <script defer src="https://use.fontawesome.com/releases/v5.0.7/js/all.js">
+</script>
 
 
-        // Helper to check if scrolled to bottom
-        function isScrolledToBottom() {
-            return translationBox.scrollHeight - translationBox.clientHeight <= translationBox.scrollTop + 1;
-        }
 
-        // Function to stream text letter-by-letter into an element.
-        function streamText(text, elem, callback) {
-            let index = 0;
-            function streamLetter() {
-                if (index < text.length) {
-                    elem.innerHTML += text[index];
-                    index++;
-                    setTimeout(streamLetter, 50); // Adjust speed as needed
-                } else if (callback) {
-                    callback();
-                }
-            }
-            streamLetter();
-        }
+  </head>
+  <body>
 
-        // Function to process a new update letter-by-letter.
-        function processUpdate(newText) {
-            streamingInProgress = true;
 
-            // Remove the new-update class from any previous update elements as soon as a new update arrives.
-            const previousUpdates = translationBox.querySelectorAll(".new-update");
-            previousUpdates.forEach(elem => {
-                elem.classList.remove("new-update");
-            });
 
-            const wasAtBottom = isScrolledToBottom();
-            // Create new element for latest update.
-            const updateElem = document.createElement("span");
-            updateElem.classList.add("new-update");
-            translationBox.appendChild(updateElem);
+    <nav class="navbar is-fixed-top" role="navigation" aria-label="main navigation">
+      <div class="navbar-brand">
+ 
+       
 
-            streamText(newText, updateElem, () => {
-                // Do not remove "new-update" class here;
-                // leave it until a subsequent update arrives.
-                streamingInProgress = false;
-                // If a new update was queued while streaming, process it next.
-                if (updateQueue.length > 0) {
-                    const queuedText = updateQueue;
-                    updateQueue = "";
-                    processUpdate(queuedText);
-                /* I am not shure I should make autoscrolling
+        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarSettings">
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </a>
+    </div>
+    <div class="navbar-end"> <!-- place something at the end of navbar --> </div>
+    
+      <div id="navbarSettings" class="navbar-menu">
+
+
+
+
+
+
+        
+        <div class="navbar-start">
+          <div class="navbar-item">
+
+
+              <!-- Font size control buttons grouped with Bulma addons, with right margin for spacing -->
+
+
+                <button id="font-size-decrease" class="button is-light" aria-label="Decrease font size">-</button>
+
+                  <span class="icon">
+                    <i class="fas fa-font"></i>
+                  </span>
                 
-                if (wasAtBottom) {
-                    smoothScrollTo(translationBox, translationBox.scrollHeight, 800); // 800ms duration
-                      */  
-                }
-                  
-            });
-        }
+                <button id="font-size-increase" class="button is-light" aria-label="Increase font size">+</button>
 
-        // Poll new translation increments letter-by-letter.
-        function pollUpdates() {
-            fetch(`/translations/${language}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.text) {
-                    // If streaming is in progress, queue the new update.
-                    if (streamingInProgress) {
-                        updateQueue += data.text;
-                    } else {
-                        processUpdate(data.text);
-                    }
-                }
-            })
-            .catch(err => console.log("Update error:", err));
-        }
+            
+            <div class="navbar-item">
+            <!-- Info icon -->
+            <a href="info.html"  aria-label="Info">
+              <span class="icon">
+                <i class="fas fa-info-circle"></i>
+              </span>
+            </a>
+            </div>
 
-        // Load full content once page loads.
-        loadFullContent();
-        // Start polling every second.
-        setInterval(pollUpdates, 1000);
-    </script>
-</body>
+            <!-- Bible icon with a right margin 
+             <div class="navbar-item">
+            <a href="bible.html" class="button is-light mr-2" aria-label="Bible Passages">
+              <span class="icon is-small">
+                <i class="fas fa-book"></i>
+              </span>
+            </a>
+            </div>
+            -->
+
+
+
+    
+        </div>
+      </div>
+    </nav>
+
+    <main>
+
+      <h1 class="title">{{ language_name }}</h1>
+
+      <div id="translationBox" class="translation-box">
+
+
+
+      We will begin with a reading. Thank you Monica for doing it. I admit to you, Paul said to the Corinthians, I am afraid that when I come, I will not find you as I would like. I fear to discover discord, jealousy, rivals, passions, cracked egoism, anger movements, a party spirit with all its sequence of disputes, mutual denials, insinuations, suffisances, shortly, various disorders. and thanks. In my word, these Christians of Corinth did not form a church but a hospital. Despite their belonging to Jesus Christ, they were all affected by spiritual pathologies; which urgently required the intervention not of Samuel but of the Doctor God. This God Doctor we have already talked about on September 8th last year, if you were not there, I invite you to go to see. I think there were important thSo befSo, before we go into a divine consultation to go to see... but finally, when we say that God is a doctor, how does he do it to try to hBut a liBut a little summary of the last time toSo the GSo the God of the Bible which is revealed in the Gospels is a God, we know, who approaches the sick to heal thBut But we discovered the last time... in the time of Jesus, physical diseases had a much greater scope than for us.They were synonymous with spiritual exclusiYou You see, this text drawn rules on sacrifice.No man, no man with a body defect will be able to approach the tempAs tAs the Eunuque that Thomas spoke to us last Sunday, do you remember? Remarkable preaching, if you missed it, don’t hesitate this week, it will do youPatientPatients and persons with disabilities were removed from the Christian community. They could not approacSo today, it is based on this background. culture-religious that we have to interpret the healing of Jesus that we read in the Gospels.If we areIf we are not aware of this gap, we will make copywritersAnAnd we will ask Jesus to heal our physical diseases with the same intonity he did when he travelled through Palestine. My friends, the problems are no longer the same, we need to be aware of it. In this small book, it is not very thick but it is very deep. In this little book, which inspired these two predications, Daniel Bourguet draws our attention to what was the purpose of Jesus. Healing a sick, Jesus did more than relieving a person’s physical suffering and they are important. I’m not saying this morning that we’re going to start... neglecting the physical suffering that reaches us, which reaches eaBut Jesus did more than beinBut Jesus did more than being a good nurHe reintegrated the sick, tHe reintegrated the sick, the disabled into the Christian community and, as Bourguet says, he returned man to GoIn what, but... my friends, is How, my friends, is it important to uBrothers and sistersBrothers and sisters, what really is in us, in your life, disturbs, alters, gangrends and destroys the love that should characterize everyoneThe relationship withThe relationship with God, the relationship with each other and the relationship with ourselves. What is dangerous for love? For the Corinthians, was it diabetes, hypertension, rheumatismItBut of course not! it was from their spiritual illness that all the evil behaviors that Paul feared to discover when hIt’s not physical pathologies that have made Hitler, Stalin and Mao blood tyrants, leaving cortexes of dead. But no, it is from their It is from their heart sick, of pride, of envy, of anger, of violence that all these disasters, death and destruction have come out.Jesus says this in his way, so do not be afraid of those who can kill the body, but who do not have the power to kill the soul. Fear rather the one who can cause you to die body and soul in hell.Jesus is clear, it’s not diabetes that can lead us to hell, it’s My friends, we fMy friends, we first need the Doctor God to be treated from our spirituFor they, accFor they, according to this word of Christ, arSo this morniSo this morning we will meditate on the dialogue between GOf course, weOf course, we will not be able to meditate so deeply but we will still try to find out some things to try to find out how God takes itI said to tryI said to try because it didn’t work at Cain. God did not succeed. God failed in his role as a doctor to prevent the worst of coAnd sometimesAnd sometimes we are the same...God would like to cure us but we do we close our ears and closeBut just befoBut just before I read the word I would still and briefly like to put more accurate words on these famous spiritual diseases. What do we talk about when we talk about spirituaSo the fatherSo the fathers of the church, you know, are these theologists who followed in the early centuries, who followed the apostles. They identifieThey willThey will begin with the diseases that are the most easily identifiable in our lives. and then they end with the most hidden spiritual dSo alreadGourmandise, already it’s interesting, the Oriental fathers, I’ll say right now, use the word passion and the word pathology, in our language that indicates diseases, atI may have this The gourmets, I may be affected by this disease. which is an excessiveThe luxury, which is a synonym of disappointment in the sexual field..The harshness, which is an excess of attachment to money.The sadness.The sadness, it is a lacThe sadness, the sadness. CedarSometimes it happens to you that you donSometimes it happens to you that you don’t have a desire to pray, that yoIt’s called the ciddle. it’s a lack of taste for spiriThe monks and hermites have much thought about So it is interesting just to note that the Catholic Church has retained seIt is interesting to note that the Catholic But as I said so far, the Eastern fathers, they, aware that God was fBut as I said so far, the Eastern fathers, they, aware thatAnd you know, we came from the church of the West and then we had a cAnd you know, we came from the church of the West and then we had a Calvin who was a reformative lawyer and that induces in us very strWhen we were a child, if we had Christian parents, they told us God sees you, see everything you do. it rather develops the image of a God judge that a God doctor is not this step? and we can retain from the Eastern fathers this rediscovery that our God is a God who approaches us to heal us before being a judge who condemns. Then Monique will read the text of Genesis, Genesis 4. The LORD said to Cain, Why are you angry and why is your face dark? If you do good, you will lift it up; but if you do not, the sin is tapped at your door. His desire goes to you, but you, control him.But Cain said to his brother Abel, Let us go to the field. And when they were in the fields, Cain threw himself on his brother Abel and killed him. Then the LORD asked Cain, Where is your brother Abel? I don’t know anything about it, he answered, am I the guardian of my brother? And God said, What did you do? I hear the blood of your brother crying revenge from the earth to me. and thanks. Then Daniel Bourguet will use 40 pages. Daniel Bourguet is a late knowledge of Hebrew. You imagine I don’t have the time to tell everything he says. But buy yourself the book like a certain Isabelle I look who gets a great profit from it. So if you’re a little on your hunger it’s very good.You’ll go to the ground key you’ll go to buy it. So let’s try to raise the positions of God’s words and attitudes toward this Cain suffered a strong rise of anger as it could be with a strong rise of fever. You know when I was in Africa I had a strong impulsion of malaria. A few days to pass 40 degrees. I promise to you that it is very pleasant but before we talk about what God does to Cain's bed, we must still look at our sick Cain. Then Cain is not the subject of anger, that is, he does not take the initiative to get angry and falls on him and this unknown thing happens for the first time in mankind. It is in Hebrew that you can find out. Cain is not the subject of anger, it is a thing that falls on him. We should translate That burns a lot Cain.Cain is faced with a fact accomplished but that exceeds it completely. This unknown thing is so violent that it goes to physically transform it. His face blew and cooled. And let’s not say in French to be red of anger, to be trembling of anger. Anger is such a violent emotion that it physically defigures us.With examining the rest of the Bible, the fathers found that no one else in the Bible had suffered such an acute crisis. There are people very angry but never except Cain someone very angry. Oh, what a precious mirror that the word of God! I can recognize myself in my anger access. You know I’ve never said that I’m very angry and I’m a little angry. No, it has always happened to me without my knowledge and suddenly I was always afraid of the violence that it could mobilize in me. And Monique you still have to remember when you had the good idea to gather butter, we were in a small chalet, we had a oven and then a suitcase where we dried our sons’ clothes and Monique once put a plate of butter but I had my Gore-Tex below, all new and the butter had flown on my Gore-Tex. Abel has to remember the anger I had caught. But I’m sure you, you have a little on-off button.Ah bah tiens, I pick a little anger.Go, we. No, no, today it’s good, I don’t pick it.Bless me it doesn’t work like that.The anger, my friends, surprises us suddenly.I’ve read, you know, that the tiger in northern Russia always attack behind.The anger always attacks us behind. And if it is not controlled, we see it in this text, it can lead to dramas, to the But you agree, which Ain, very angry, has not yet done harm. There is, therefore, no one accused that requires the intervention of a judge. Thus, God, faster than an urgentist of 144, approaches him, volunteerly approaches him to give him first caAnd Why is he angry? I have seen the signs on your face. face when you are cooled and your nose all red..You see, there is no divine condemnation in these words.Not even a reproach regarding the intensity of his anger.But a question,a question that invites Kain to go to see inside him what is happening. God wants to reveal to Kain that anger always comes in response to something he has provoked. Yes, it falls on us at the provision, but yes, it has a cause to be identified. You know, when it happens to me, and it still happens to me unfortunately to be angry with someone, my Heavenly Father doesn’t let me go of a shell.It annoys me.And often, he doesn’t let me go of a shell because he causes questions in me. And often it’s the next morning that I’m in my meditation rate, that I’m in dialogue with him, that I’m forced to admit that I had my part of responsibility. It’s humiliating, I give you, but it’s healthy. In this story, God asks four questions.You have them here. But how do you theologically hold together the fact that it is proclaimed that God is all-known who knows everything, and who asks his questions? Is this not an obvious demonstration? God knows the answers. God knows very well. Is it not the obvious demonstration that God seeks to enter into dialogue with the sick?This is what God seeks.He seeks to cause, to cause Cain.He seeks to raise awareness and question. The questions God asks us are not the questions of a judge, they are the questions of a doctor who wants to help us go to see what is happening in us, why it resonates so strongly. The next time you will be angry with your wife, your husband, your children, your colleague. So put off, let a day go and you say to the Lord, Lord, but show me why it makes so much resonance. It will be interesting. If Cain, my friends, had come back in himself, he would have understood that Abel was there for nothing. He would have discerned Cain that it was God who was responsible, that God, preferring the offer of his child, was responsible for his anger.He would have realized that in fact his anger was the anger of someone whose own love was wounded. But good blood! Why did Cain not break the piece? Why did he not say to God, in fact I’m angry against you, I’ve taken an initiative, but you don’t care. And the author writes this, prayer is a remedy against anger, throwing his anger before God is a wonderful remedy, even if that anger is against God. You know, we have a God who has strong shoulders, who has strong skin, if you pass me the expression, and who loves us enough to welcome anger. Read the book of Job, read the complaints of Jeremiah. If Cain had thrown his anger before God, he might have been able to hear God say to him gently, “I didn’t want to hurt you, Cain, nor even humiliate you, but I wanted to honour your little. You know, Cain, you must learn to know me. I am always on the side of the smallest, the weakest. That’s what he might have understood, Cain. And Cain would have understood that Abel was there for nothing.But Cain is dramatic, he remains blind and silent in the face of God's attempts.But God does not discourage. So, as a good doctor, he warns his patient of the risks he takes not to take the symptoms that are already manifested seriously. The sin is tapped, a beast is seen, a fool is tapped at your door, its desire goes to you, but you control it; if you do well, you will raise your face. Magnificent of this Doctor God who does not even accuse us of making us angry, who does not even blame us. He doesn’t say to Cain, you’re a horrible person, look how angry you’re. No, God does not do that..He doesn't say to Cain, it's anger that defines you, but no.He tells him, it's something that's strange, it's a fool that's tapped at your door.He's still on the other side of your door. But look at Cain, look at it. Cain you can choose.Now you can open the door to your anger or you can leave it behind the door. Paul will say, if you are angry, do not sinn. We have so much been taught to regulate all our emotions.We can be angry without having sinned. And Paul will say that the sun does not fall on your anger. I have to conclude. God the doctor gives a prescription to our angry Cain.The remedy is contained in this invitation.If you act well you will raise your face.To get out of his spiral Cain would have to put in motion acts inspired by love. Especially humility and forgiveness. It’s a secret my friends.It’s Engoli who tells the couple.If it works for couples, it works in other relationships. When love leaves a relationship, do the gestures that love does. would and love will return to the situation. Because you know that our feelings are at the traction of our will and not vice versa. So here is a good secret: we fight the evil by doing the good, not by being passive. Warmness, irritation, anger, glow of voice, insults, let all this disappear from the midst of you as well as all forms of evilness. And Paul talks to the Christians of Corinth, not to the football club or I don’t know which local society, to the church of Jesus Christ of Ephesus. Be good and understandable to each other. Again the kindness. My friends, if we want the gateway to persist, goodness, kindness must be one of our brilliant values. Forgive each other as God has forgiven you in Christ.We will always have good reasons to be angry against a brother or sister.We will not cut off, but there is forgiveness. We are invited to fight these spiritual illnesses, to bring them to the Lord of good things. So we will take a little moment of silence, and then we will share this meal of communion.Is it not the place to ask him to give us these divine remedies that are goodness, love, humility and forgiveness? Didn’t Jesus say, without me, you can’t do anything? I want to pray. May it be good Lord to discover you under the traits of a gentle, attentive, warning doctor who tells us the truth. Thank you, O God, because you are not present before us, first, as a judge who condemns, who prison, but as a doctor who wants to cure. O Lord, give us the grace to hear what you address us. And thank you, Lord, because you do good things in our lives and you will do it again. Lord, let us in this moment of silence hear your voice. ? Did Jesus not say without me you can’t do anything? I will pray. Let him be a good Lord of every day. discover you under the traits of a doctor. gentle, attentive, warning, who tells us the truth. Thank God because you are not present before us first as a judge who condemns, who prison, but as a doctor who wants to cure. O Lord, give us the grace to hear those why you address us. And thank you, Lord, for you do good things in our lives and you will do it again. Lord, let us in this moment of silence hear your voice. 
+    </div>
+
+    </main> 
+
+ <!-- include at the end of the body-->
+  <script src="scripts.js"></script>
+  </body>
 </html>
