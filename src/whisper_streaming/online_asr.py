@@ -161,7 +161,7 @@ class OnlineASRProcessor:
             now = datetime.now().strftime('%T.%f')[:-3]
             for w in words:
                 self.transcribed_word_file.write(f'{now},{w[0]:.3f},{w[1]:.3f},"{w[2]}"\n')
-            self.transcribed_word_file.flush()
+            
         
  
 
@@ -249,7 +249,7 @@ class OnlineASRProcessor:
         if (self.output_folder is not None) and (completed[2]!=""):
 
             self.full_transcript_file.write(f"{completed[2]}\n")
-            self.full_transcript_file.flush()
+            
 
         
 
