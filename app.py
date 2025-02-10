@@ -7,6 +7,19 @@ from src.translation import server  # assumed to contain translation pipeline co
 
 CONFIG_FILE = "translation_server_config.yaml"
 
+## Set up logging
+from src.utils.logging import add_other_loggers,logger
+import sys
+
+
+logger.remove()
+logger.add(sys.stderr, level="DEBUG", format="{time:%H:%M:%S.%f}<level>[{level}]: {message}</level>", colorize=True)
+
+logger.add("logs/translation_server.log", level="DEBUG", format="{time:%H:%M:%S.%f}[{level}]: {message}", colorize=True)
+
+add_other_loggers(["sr.translation.server","src.whisper_streaming.online_asr", "sr.translation.translation", "src.whisper.audio","src.whisper.timestamped_words"], level="DEBUG")
+
+
 
 args = server.load_config(CONFIG_FILE)
 # subset only to the languages that are supported by the translation pipeline
