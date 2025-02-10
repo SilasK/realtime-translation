@@ -5,7 +5,7 @@ from pathlib import Path
 import logging
 logger = logging.getLogger(__name__)
 import time
-import logging
+
 
 from pathlib import Path
 
@@ -17,6 +17,7 @@ from ..whisper.audio import AudioInput
 from .translation import TranslationPipeline
 from ..whisper_streaming.whisper_online import asr_factory
 from ..utils.logging import log_transcript
+
 
 SAMPLING_RATE = 16000
 
@@ -34,7 +35,7 @@ def load_config(config_file: str) -> argparse.Namespace:
 def initialize(args,log_to_console=True,
     log_to_web= False ):
 
-    logging.info("Initializing translation pipeline.")
+    logger.info("Initializing translation pipeline.")
 
 
 
@@ -116,7 +117,7 @@ def main_loop(args,audio_source, transcriber, translation_pipeline, timestamped_
                 if o[0] is  None:
                     if not args.vac:
                         logger.warning("No output from transcriber.")
-                    time.sleep(0.7*min_chunk)
+                    time.sleep(0.9*min_chunk)
                     continue
                 else:
                     log_transcript(o, start,timestamped_file=timestamped_file)

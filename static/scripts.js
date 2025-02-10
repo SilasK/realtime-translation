@@ -55,7 +55,7 @@ $navbarBurgers.forEach((el) => {
   });
 })();
 
-/*
+
 const language = "{{ language }}";
 const translationBox = document.getElementById("translationBox");
 let streamingInProgress = false;
@@ -170,4 +170,3 @@ loadFullContent();
 // Start polling every second.
 setInterval(pollUpdates, 1000);
 
-*/
