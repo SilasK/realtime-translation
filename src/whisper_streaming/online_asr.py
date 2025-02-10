@@ -161,6 +161,7 @@ class OnlineASRProcessor:
             now = datetime.now().strftime('%T.%f')[:-3]
             for w in words:
                 self.transcribed_word_file.write(f'{now},{w[0]:.3f},{w[1]:.3f},"{w[2]}"\n')
+            self.transcribed_word_file.flush()
             
         
  
