@@ -379,37 +379,63 @@ class OnlineASRProcessor:
         logger.debug(
             f"len of audio buffer is now: {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f}s"
             )
+                
 
     def words_to_sentences(self, words):
-        """Uses self.tokenize for sentence segmentation of words.
+        """Uses naive abroach to  sentence segmentation of words.
         Returns: [(beg,end,"sentence 1"),...]
         """
+        import re
+
+        all_sentences = []
+        sentence=[]
 
 
-        cwords = [w for w in words]
-        t = self.asr.sep.join(o[2] for o in cwords)
-        logger.debug(f"[Sentence-segmentation] Raw Text: {t}")
 
-        s = self.tokenize([t])
-        out = []
-        while s:
-            beg = None
-            end = None
-            sent = s.pop(0).strip()
-            fsent = sent
-            while cwords:
-                b, e, w = cwords.pop(0)
-                w = w.strip()
-                if beg is None and sent.startswith(w):
-                    beg = b
-                if end is None and sent == w:
-                    end = e
-                if beg is not None and end is not None:
-                    out.append((beg, end, fsent))
-                    break
-                sent = sent[len(w) :].strip()
-        
-        return out
+        for w in words:
+            t = w[2]
+            
+            break_sentence = False
+            
+            if re.search(r'[.?!]', t):
+                            
+                if not re.search(r'\.', t):
+                    # It is a ! or  ?    
+                    break_sentence= True
+                else:
+                    # It is at least a full stop
+                    if re.match(r'\.',t):
+                        logger.warning(f'Full stop at the beginning of the word "{t}", Ignoring it.')
+
+                        w[2]= w[2][1:]
+
+                    elif re.search(r'\.\.\.',t):
+                        # replace ... with unicode ellipsis
+                        w[2].replace('...',r'\u2026')
+                    else:
+                        break_sentence= True
+
+            sentence.append(w)
+            if break_sentence:
+                all_sentences.append(self.concatenate_tsw(sentence))
+                sentence=[]
+            
+
+        if break_sentence:
+            # last sentence is complete
+            logger.debug(f"Last sentence is complete, append emty sentence")
+            last_timepoint = all_sentences[-1][1]
+            all_sentences.append((last_timepoint,last_timepoint , "")) 
+            
+            
+
+        else:
+            all_sentences.append(self.concatenate_tsw(sentence))
+                        
+
+        return all_sentences
+
+
 
     def finish(self):
         """Flush the incomplete text when the whole processing ends.
