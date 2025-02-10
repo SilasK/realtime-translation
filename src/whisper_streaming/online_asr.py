@@ -1,6 +1,8 @@
 import sys
 import numpy as np
 import logging
+from pathlib import Path
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +93,7 @@ class OnlineASRProcessor:
         asr,
         tokenize_method=None,
         buffer_trimming=("segment", 15),
+        output_folder=None,
         logfile=sys.stderr,
     ):
         """
@@ -111,6 +114,11 @@ class OnlineASRProcessor:
         self.asr = asr
         self.tokenize = tokenize_method
         self.logfile = logfile
+        if output_folder is None:
+            self.output_folder = None
+        else:
+            self.output_folder = Path(output_folder)
+            self.output_folder.mkdir(parents=True, exist_ok=True)
 
         self.init()
 
@@ -137,6 +145,23 @@ class OnlineASRProcessor:
         self.promt = "" 
         self.final_transcript = []
         self.commited_not_final = []
+
+        if self.output_folder is not None:
+            start_time_str = datetime.now().strftime('%F_%T')
+            self.transcribed_word_file= (self.output_folder / f"transcribed_words_{start_time_str}.csv").open("w")
+
+            self.full_transcript_file = (self.output_folder / f"full_transcript_{start_time_str}.md").open("w")
+
+    
+
+
+    def _write_transcribed_words(self, words):
+        
+        if self.output_folder is not None:
+            now = datetime.now().strftime('%T.%f')[:-3]
+            for w in words:
+                self.transcribed_word_file.write(f'{now},{w[0]:.3f},{w[1]:.3f},"{w[2]}"\n')
+            self.transcribed_word_file.flush()
         
  
 
@@ -179,12 +204,15 @@ class OnlineASRProcessor:
         self.transcript_buffer.insert(tsw, self.buffer_time_offset)
         commited_tsw = self.transcript_buffer.flush()
 
+        
 
 
         completed = (None, None, "")
         if len(commited_tsw) > 0:
+
+            self._write_transcribed_words(commited_tsw)
             
-            
+
             logger.debug(f"New commited words : {self.concatenate_tsw(commited_tsw)[2]}")
 
             self.commited_not_final.extend(commited_tsw)
@@ -216,6 +244,12 @@ class OnlineASRProcessor:
                     f"    INCOMPLETE: {incomplete[2]}"
                     )
         uncommitted = self.concat_two_segments(commited_but_not_final, incomplete)
+
+
+        if (self.output_folder is not None) and (completed[2]!=""):
+
+            self.full_transcript_file.write(f"{completed[2]}\n")
+            self.full_transcript_file.flush()
 
         
 
@@ -389,6 +423,13 @@ class OnlineASRProcessor:
 
         uncommitted = self.concat_two_segments(self.concatenate_tsw(self.commited_not_final), incomplete)
 
+        if self.output_folder is not None:
+
+            self.full_transcript_file.write(f"{incomplete[2]}\n")
+            self._write_transcribed_words(incomplete_words)
+
+
+
 
         return uncommitted, (None, None, "")
 
@@ -417,6 +458,11 @@ class OnlineASRProcessor:
             b = offset + tsw[0][0]
             e = offset + tsw[-1][1]
         return (b, e, t)
+    
+    def __del__(self):
+        if self.output_folder is not None:
+            self.transcribed_word_file.close()
+            self.full_transcript_file.close()
 
 
 class VACOnlineASRProcessor(OnlineASRProcessor):
@@ -439,6 +485,7 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
 
         model, _ = torch.hub.load(repo_or_dir="snakers4/silero-vad", model="silero_vad")
         from src.whisper_streaming.silero_vad_iterator import FixedVADIterator
+
 
 
         self.vac = FixedVADIterator(

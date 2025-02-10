@@ -200,6 +200,12 @@ def backend_factory(args):
     return asr, tokenizer
 
 def online_factory(args, asr, tokenizer, logfile=sys.stderr):
+
+    if hasattr(args,"output_dir"):
+        output_folder = args.output_dir
+    else:
+        output_folder = None
+
     if args.vac:
         online = VACOnlineASRProcessor(
             args.min_chunk_size,
@@ -207,6 +213,7 @@ def online_factory(args, asr, tokenizer, logfile=sys.stderr):
             tokenizer,
             logfile=logfile,
             buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec),
+            output_folder=output_folder,
         )
     else:
         online = OnlineASRProcessor(
@@ -214,6 +221,7 @@ def online_factory(args, asr, tokenizer, logfile=sys.stderr):
             tokenizer,
             logfile=logfile,
             buffer_trimming=(args.buffer_trimming, args.buffer_trimming_sec),
+            output_folder=output_folder,
         )
     return online
   
