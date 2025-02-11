@@ -13,7 +13,7 @@ model: large-v3-turbo
 task: transcribe
 backend: mlx-whisper
 min_chunk_size: 2.0
-buffer_trimming_sec: 12
+buffer_trimming_sec: 21
 buffer_trimming: sentence
 log_level: DEBUG
 

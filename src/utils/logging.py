@@ -35,7 +35,7 @@ def log_transcript(o, start, now=None, timestamped_file = None):
     if now is None:
         now = time.time() - start
     
-    log_string = f"{now:7.3f}, {o[0]:7.3f}-{o[1]:7.3f} ({(now-o[1]):+2.1f}s): {o[2]}"
+    log_string = f"{now:7.3f}, {o[0]:7.3f}-{o[1]:7.3f} ({(now-o[0]):+2.1f}s): {o[2]}"
     logger.info(log_string)
     if timestamped_file is not None:
         timestamped_file.write(log_string + "\n")
