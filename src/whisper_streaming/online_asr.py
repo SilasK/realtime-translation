@@ -283,10 +283,10 @@ class OnlineASRProcessor:
 
         ## Transcribe and format the result to [(beg,end,"word1"), ...]
         
-        if len(self.promt) > 50:
-            logger.debug(f"Transcribing with prompt: {self.promt[:25]}...{self.promt[-25:]}")
-        else:
-            logger.debug(f"Transcribing with prompt: {self.promt}")
+        # if len(self.promt) > 50:
+        #     logger.debug(f"Transcribing with prompt: {self.promt[:25]}...{self.promt[-25:]}")
+        # else:
+        #     logger.debug(f"Transcribing with prompt: {self.promt}")
         res = self.asr.transcribe(self.audio_buffer, init_prompt=self.promt)
         tsw = self.asr.ts_words(res)
 
@@ -367,20 +367,16 @@ class OnlineASRProcessor:
             sentences,tailing_words = words_to_sentences(self.commited_not_final)
 
             
-            last_sentence_finished = len(tailing_words) == 0
 
 
-            if (not last_sentence_finished) and (len(sentences) < 2):
-                logger.debug(f"[Sentence-segmentation] no full sentence segmented, do not finalize anything.")
-                return []
-            
-            else:
+
+            if len(sentences) > 0:
+
                 
-
                 identified_sentence= "\n    - ".join([f"{s[0]*1000:.0f}-{s[1]*1000:.0f} {s[2]}" for s in sentences])
                 logger.debug(f"[Sentence-segmentation] identified sentences:\n    - {identified_sentence}")
 
-                if not last_sentence_finished:
+                if len(tailing_words) > 0:
                     logger.debug(f"[Sentence-segmentation] Tailing words: {concatenate_tsw(tailing_words)[2]}")
 
 
@@ -391,15 +387,12 @@ class OnlineASRProcessor:
                 self.chunk_at(sentences[-1][1])
                 self.commited_not_final = tailing_words 
                 return sentences
-
-                
-                
-                
-
-                
-
             
-        
+            else:
+                logger.debug(f"[Sentence-segmentation] no full sentence. Only have: "+ concatenate_tsw(tailing_words)[2]
+                             )
+                
+ 
 
 
             # break audio buffer anyway if it is too long
@@ -408,25 +401,27 @@ class OnlineASRProcessor:
             return []
         else:
                     
+            completed_words = self.chunk_completed_segment(self.commited_not_final)
+
             if self.buffer_trimming_way == "sentence":
                 logger.warning(f"Chunk segment after {self.buffer_trimming_sec} seconds!"
                                 " Even if no sentence was found!"
                             )
-                    
-                    
-
+                # concatenate to a single segment
+                completed_words = [concatenate_tsw(completed_words)]
+ 
                 
-            return self.chunk_completed_segment() 
+            return completed_words 
                 
 
             
 
 
 
-    def chunk_completed_segment(self) -> list:
+    def chunk_completed_segment(self,ts_words) -> list:
 
         
-        ts_words = self.commited_not_final
+
 
         if len(ts_words) <= 1:
             logger.debug(f"--- not enough segments to chunk (<=1 words)")
