@@ -81,7 +81,95 @@ class HypothesisBuffer:
         return self.buffer
 
 
+def concatenate_tsw(
+    tsw,
+    sep=None,
+    offset=0,
+):
+    
+    # logger.warning("Use TimeStampedSequence instead", DeprecationWarning)
 
+    # concatenates the timestamped words or sentences into one sequence that is flushed in one line
+    # sents: [(beg1, end1, "sentence1"), ...] or [] if empty
+    # return: (beg1,end-of-last-sentence,"concatenation of sentences") or (None, None, "") if empty
+    if sep is None:
+        sep = ""
+
+    
+
+    t = sep.join(s[2] for s in tsw)
+    if len(tsw) == 0:
+        b = None
+        e = None
+    else:
+        b = offset + tsw[0][0]
+        e = offset + tsw[-1][1]
+    return (b, e, t)
+
+
+
+def words_to_sentences(words):
+    """Uses naive abroach to  sentence segmentation of words.
+    Returns: [(beg,end,"sentence 1"),...]
+    """
+    import re
+
+    all_sentences = []
+    sentence=[]
+
+
+
+    for w in words:
+        t = w[2]
+        
+        break_sentence = False
+        
+        if re.search(r'[.?!]', t):
+            if not re.search(r'\.', t):
+                # It is a ! or  ?    
+                break_sentence= True
+            else:
+                # full stop(s)
+                if re.match(r'\.',t):
+                    logger.warning(f'Full stop at the beginning of the word "{t}", Ignoring it.')
+                    w[2]= w[2][1:]
+                # Ellipsis
+                elif re.search(r'\.\.\.',t):
+                    w[2].replace('...',r'\u2026')
+                elif re.search(r'\d\.',t):
+                    pass
+                else:
+                    break_sentence= True
+
+        sentence.append(w)
+        if break_sentence:
+            all_sentences.append(concatenate_tsw(sentence))
+            sentence=[]
+
+
+
+    
+    if break_sentence:
+        tailing_words = []
+    else:
+        tailing_words = sentence
+
+
+    return all_sentences,tailing_words
+
+
+def concat_two_segments(first, second):
+    """Concatenate two segments into one segment, check if one is None.
+    This function will be replaced by simply + of TimeStampedSequence objects."""
+    
+    if first[1] is None:
+        res = second # if second is also None, it will return (None, None, "")
+    elif second[1] is None:
+        res = first
+    else:
+        res = concatenate_tsw([first, second])
+
+    return res
 
 
 class OnlineASRProcessor:
@@ -216,7 +304,7 @@ class OnlineASRProcessor:
             self._write_transcribed_words(commited_tsw)
             
 
-            logger.debug(f"New commited words : {self.concatenate_tsw(commited_tsw)[2]}")
+            logger.debug(f"New commited words : {concatenate_tsw(commited_tsw)[2]}")
 
             self.commited_not_final.extend(commited_tsw)
 
@@ -241,20 +329,20 @@ class OnlineASRProcessor:
 
             
 
-                completed= self.concatenate_tsw(completed_words)
+                completed= concatenate_tsw(completed_words)
                 self.promt = (self.promt + completed[2])[-200:] # keep only last 200 characters
         
         
         
-        commited_but_not_final = self.concatenate_tsw(self.commited_not_final)            
-        incomplete = self.concatenate_tsw(self.transcript_buffer.complete())
+        commited_but_not_final = concatenate_tsw(self.commited_not_final)            
+        incomplete = concatenate_tsw(self.transcript_buffer.complete())
                 
 
         logger.debug(f"\n    COMPLETE NOW: {completed[2]}\n"
                     f"    COMMITTED (but not Final): {commited_but_not_final[2]}\n"
                     f"    INCOMPLETE: {incomplete[2]}"
                     )
-        uncommitted = self.concat_two_segments(commited_but_not_final, incomplete)
+        uncommitted = concat_two_segments(commited_but_not_final, incomplete)
 
 
         if (self.output_folder is not None) and (completed[2]!=""):
@@ -269,25 +357,14 @@ class OnlineASRProcessor:
 
         return completed, uncommitted
     
-    def concat_two_segments(self,first, second):
-        """Concatenate two segments into one segment, check if one is None.
-        This function will be replaced by simply + of TimeStampedSequence objects."""
-        
-        if first[1] is None:
-            res = second # if second is also None, it will return (None, None, "")
-        elif second[1] is None:
-            res = first
-        else:
-            res = self.concatenate_tsw([first, second])
 
-        return res
 
 
     def get_completed_words(self):
         
         if self.buffer_trimming_way == "sentence":
             
-            sentences,tailing_words = self.words_to_sentences(self.commited_not_final)
+            sentences,tailing_words = words_to_sentences(self.commited_not_final)
 
             
             last_sentence_finished = len(tailing_words) == 0
@@ -304,7 +381,7 @@ class OnlineASRProcessor:
                 logger.debug(f"[Sentence-segmentation] identified sentences:\n    - {identified_sentence}")
 
                 if not last_sentence_finished:
-                    logger.debug(f"[Sentence-segmentation] Tailing words: {self.concatenate_tsw(tailing_words)}")
+                    logger.debug(f"[Sentence-segmentation] Tailing words: {concatenate_tsw(tailing_words)[2]}")
 
 
                 #
@@ -402,55 +479,6 @@ class OnlineASRProcessor:
             )
                 
 
-    def words_to_sentences(self, words):
-        """Uses naive abroach to  sentence segmentation of words.
-        Returns: [(beg,end,"sentence 1"),...]
-        """
-        import re
-
-        all_sentences = []
-        sentence=[]
-
-
-
-        for w in words:
-            t = w[2]
-            
-            break_sentence = False
-            
-            if re.search(r'[.?!]', t):
-                if not re.search(r'\.', t):
-                    # It is a ! or  ?    
-                    break_sentence= True
-                else:
-                    # full stop(s)
-                    if re.match(r'\.',t):
-                        logger.warning(f'Full stop at the beginning of the word "{t}", Ignoring it.')
-                        w[2]= w[2][1:]
-                    # Ellipsis
-                    elif re.search(r'\.\.\.',t):
-                        w[2].replace('...',r'\u2026')
-                    elif re.search(r'\d\.',t):
-                        pass
-                    else:
-                        break_sentence= True
-
-            sentence.append(w)
-            if break_sentence:
-                all_sentences.append(self.concatenate_tsw(sentence))
-                sentence=[]
-    
-
-
-        
-        if break_sentence:
-            tailing_words = []
-        else:
-            tailing_words = sentence
-
-
-        return all_sentences,tailing_words
-
 
 
     def finish(self):
@@ -458,12 +486,12 @@ class OnlineASRProcessor:
         Returns: the same format as self.process_iter()
         """
         incomplete_words = self.transcript_buffer.complete()
-        incomplete = self.concatenate_tsw(incomplete_words)
+        incomplete = concatenate_tsw(incomplete_words)
         if incomplete[1] is not None:
             logger.debug(f"I finish. Commit non-commited: {incomplete[0]*1000:.0f}-{incomplete[1]*1000:.0f}: {incomplete[2]}")
         self.buffer_time_offset += len(self.audio_buffer) / 16000
 
-        uncommitted = self.concat_two_segments(self.concatenate_tsw(self.commited_not_final), incomplete)
+        uncommitted = concat_two_segments(concatenate_tsw(self.commited_not_final), incomplete)
 
         if self.output_folder is not None:
 
@@ -479,32 +507,7 @@ class OnlineASRProcessor:
 
         return uncommitted, (None, None, "")
 
-    def concatenate_tsw(
-        self,
-        tsw,
-        sep=None,
-        offset=0,
-    ):
-        
-        # logger.warning("Use TimeStampedSequence instead", DeprecationWarning)
 
-        # concatenates the timestamped words or sentences into one sequence that is flushed in one line
-        # sents: [(beg1, end1, "sentence1"), ...] or [] if empty
-        # return: (beg1,end-of-last-sentence,"concatenation of sentences") or (None, None, "") if empty
-        if sep is None:
-            sep = self.asr.sep
-
-        
-
-        t = sep.join(s[2] for s in tsw)
-        if len(tsw) == 0:
-            b = None
-            e = None
-        else:
-            b = offset + tsw[0][0]
-            e = offset + tsw[-1][1]
-        return (b, e, t)
-    
 
 
 
