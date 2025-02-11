@@ -148,9 +148,11 @@ class OnlineASRProcessor:
 
         if self.output_folder is not None:
             start_time_str = datetime.now().strftime('%F_%T')
-            self.transcribed_word_file= (self.output_folder / f"transcribed_words_{start_time_str}.csv").open("w")
+            self.transcribed_word_file= (self.output_folder / f"transcribed_words_{start_time_str}.csv").open("a")
 
-            self.full_transcript_file = (self.output_folder / f"full_transcript_{start_time_str}.md").open("w")
+            self.full_transcript_file = (self.output_folder / f"full_transcript_{start_time_str}.md").open("a")
+
+            self.transcribed_sentence_file = (self.output_folder / f"sentence_transcript_{start_time_str}.csv").open("a")
 
     
 
@@ -229,6 +231,14 @@ class OnlineASRProcessor:
                 
             
                 self.final_transcript.extend(completed_words) # add whole time stamped sentences / or words to commited list
+
+                if self.output_folder is not None:
+                    now = datetime.now().strftime('%T.%f')[:-3]
+                    for s in completed_words:
+                        self.transcribed_sentence_file.write(f'{now},{s[0]:.3f},{s[1]:.3f},"{s[2]}"\n')
+                    self.transcribed_sentence_file.flush()
+            
+
             
 
                 completed= self.concatenate_tsw(completed_words)
@@ -250,6 +260,7 @@ class OnlineASRProcessor:
         if (self.output_folder is not None) and (completed[2]!=""):
 
             self.full_transcript_file.write(f"{completed[2]}\n")
+            self.full_transcript_file.flush()
             
 
         
@@ -276,30 +287,39 @@ class OnlineASRProcessor:
         
         if self.buffer_trimming_way == "sentence":
             
-            sentences = self.words_to_sentences(self.commited_not_final)
-
-
-
-            if len(sentences) < 2:
-                logger.debug(f"[Sentence-segmentation] no full sentence segmented, do not finalize anything.")
-                return []
-                
+            sentences,tailing_words = self.words_to_sentences(self.commited_not_final)
 
             
+            last_sentence_finished = len(tailing_words) == 0
+
+
+            if (not last_sentence_finished) and (len(sentences) < 2):
+                logger.debug(f"[Sentence-segmentation] no full sentence segmented, do not finalize anything.")
+                return []
+            
             else:
+                
+
                 identified_sentence= "\n    - ".join([f"{s[0]*1000:.0f}-{s[1]*1000:.0f} {s[2]}" for s in sentences])
                 logger.debug(f"[Sentence-segmentation] identified sentences:\n    - {identified_sentence}")
 
-                # assume last sentence is incomplete, which is not always true
+                if not last_sentence_finished:
+                    logger.debug(f"[Sentence-segmentation] Tailing words: {self.concatenate_tsw(tailing_words)}")
 
-                # we will continue with audio processing at this timestamp
-                chunk_at = sentences[-2][1]
 
-                self.chunk_at(chunk_at)
+                #
                 # TODO: here paragraph breaks can be added
-                self.commited_not_final = sentences[-1:]
+                
 
-                return sentences[:-1]
+                self.chunk_at(sentences[-1][1])
+                self.commited_not_final = tailing_words 
+                return sentences
+
+                
+                
+                
+
+                
 
             
         
@@ -399,20 +419,19 @@ class OnlineASRProcessor:
             break_sentence = False
             
             if re.search(r'[.?!]', t):
-                            
                 if not re.search(r'\.', t):
                     # It is a ! or  ?    
                     break_sentence= True
                 else:
-                    # It is at least a full stop
+                    # full stop(s)
                     if re.match(r'\.',t):
                         logger.warning(f'Full stop at the beginning of the word "{t}", Ignoring it.')
-
                         w[2]= w[2][1:]
-
+                    # Ellipsis
                     elif re.search(r'\.\.\.',t):
-                        # replace ... with unicode ellipsis
                         w[2].replace('...',r'\u2026')
+                    elif re.search(r'\d\.',t):
+                        pass
                     else:
                         break_sentence= True
 
@@ -420,21 +439,17 @@ class OnlineASRProcessor:
             if break_sentence:
                 all_sentences.append(self.concatenate_tsw(sentence))
                 sentence=[]
-            
+    
 
+
+        
         if break_sentence:
-            # last sentence is complete
-            logger.debug(f"Last sentence is complete, append emty sentence")
-            last_timepoint = all_sentences[-1][1]
-            all_sentences.append((last_timepoint,last_timepoint , "")) 
-            
-            
-
+            tailing_words = []
         else:
-            all_sentences.append(self.concatenate_tsw(sentence))
-                        
+            tailing_words = sentence
 
-        return all_sentences
+
+        return all_sentences,tailing_words
 
 
 
@@ -454,6 +469,10 @@ class OnlineASRProcessor:
 
             self.full_transcript_file.write(f"{incomplete[2]}\n")
             self._write_transcribed_words(incomplete_words)
+        
+            self.transcribed_word_file.close()
+            self.full_transcript_file.close()
+            self.transcribed_sentence_file.close()
 
 
 
@@ -486,10 +505,8 @@ class OnlineASRProcessor:
             e = offset + tsw[-1][1]
         return (b, e, t)
     
-    def __del__(self):
-        if self.output_folder is not None:
-            self.transcribed_word_file.close()
-            self.full_transcript_file.close()
+
+
 
 
 class VACOnlineASRProcessor(OnlineASRProcessor):
