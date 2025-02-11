@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 from threading import Thread
 import signal
 
+from pathlib import Path
 from src.translation.translation import WebOutputStream, LanguageName
 from src.translation import server  # assumed to contain translation pipeline code
 
@@ -15,9 +16,13 @@ import sys
 logger.remove()
 logger.add(sys.stderr, level="DEBUG", format="{time:%H:%M:%S.%f}<level>[{level}]: {message}</level>", colorize=True)
 
-logger.add("logs/translation_server.log", level="DEBUG", format="{time:%H:%M:%S.%f}[{level}]: {message}", colorize=True)
+log_file = Path("logs/translation_server.log")
 
-add_other_loggers(["sr.translation.server","src.whisper_streaming.online_asr", "sr.translation.translation", "src.whisper.audio","src.whisper.timestamped_words"], level="DEBUG")
+log_file.unlink(missing_ok=True)
+
+logger.add(log_file, level="DEBUG", format="{time:%H:%M:%S.%f}[{level}]: {message}", colorize=True)
+
+add_other_loggers(["src.translation.server","src.whisper_streaming.online_asr", "sr.translation.translation", "src.whisper.audio","src.whisper.timestamped_words"], level="DEBUG")
 
 
 
