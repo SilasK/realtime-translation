@@ -1,6 +1,6 @@
 from pathlib import Path
 
-
+import numpy as np
 
 import logging
 logger = logging.getLogger(__name__)
@@ -16,6 +16,7 @@ from ..whisper.audio import AudioInput
 
 from .translation import TranslationPipeline
 from ..whisper_streaming.whisper_online import asr_factory
+from ..whisper_streaming.online_asr import words_to_sentences
 from ..utils.logging import log_transcript
 
 
@@ -111,17 +112,33 @@ def main_loop(args,audio_source, transcriber, translation_pipeline, timestamped_
 
         
         start = time.time()
+        
+        last_transcribed = np.nan
         while translation_loop_running:
             try:
+                
+                logger.warning(f"Time since last transcribed: {time.time()- last_transcribed:.2f}s")
+        
                 o,incomplete = transcriber.process_iter()
+                last_transcribed = time.time()
                 if o[0] is  None:
-                    if not args.vac:
-                        logger.warning("No output from transcriber.")
+                    if not args.vac: logger.warning("No output from transcriber.")
+
                     time.sleep(0.9*min_chunk)
-                    continue
+                    
                 else:
                     log_transcript(o, start,timestamped_file=timestamped_file)
-                    translation_pipeline.put_text(o[2])
+                    logger.debug("Incomplete: "+incomplete[2])
+
+
+
+                    translation_pipeline.put_text(o[2],incomplete[2])
+
+
+                
+                translation_queue_size = translation_pipeline.translation_queue.qsize()
+                logger.debug(f"Translation queue size: {translation_queue_size}")
+
             except Exception as e:
                 logger.error(f"Assertion error: {e}")
                 raise e

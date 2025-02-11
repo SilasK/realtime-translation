@@ -3,3 +3,5 @@
 - [ ] Ellipses, are some parts missing?
 - [ ] Paragraph breaks
 - [ ] Web interface has no space.
+- [ ] Sentence stop doesn't care about "
+- [ ] Break at least on comma

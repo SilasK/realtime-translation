@@ -49,7 +49,7 @@ class TextOutputStreamBase(ABC):
         self.language = language
 
     @abstractmethod
-    def write(self, translated_text: str):
+    def write(self, translated_text: str, is_complete: bool):
         pass
 
 
@@ -65,8 +65,11 @@ class ConsoleOutputStream(TextOutputStreamBase):
         self.color = console_color
 
 
-    def write(self, translated_text: str):
-        print(f"\033[{self.color}m[{self.language}]\033[0m: {translated_text}")
+    def write(self, translated_text: str, is_complete: bool):
+        if is_complete:
+            print(f"\033[{self.color}m[{self.language}]\033[0m: {translated_text}")
+        else:
+            print(f"\033[{self.color}m[{self.language}]\033[0m: \033[31m{translated_text}\033[0m")
 
 class FileOutputStream(TextOutputStreamBase):
     def __init__(self, file_path: Path | str, language: str):
@@ -83,10 +86,11 @@ class FileOutputStream(TextOutputStreamBase):
         self.sep=" "
 
     
-    def write(self, translated_text: str):
-        self.outfile.write(translated_text)
-        self.outfile.write(self.sep)
-        self.outfile.flush()
+    def write(self, translated_text: str, is_complete: bool):
+        if is_complete:
+            self.outfile.write(translated_text)
+            self.outfile.write(self.sep)
+            self.outfile.flush()
 
     def stop(self):
         self.outfile.close()
@@ -104,17 +108,25 @@ class WebOutputStream(TextOutputStreamBase):
         self.queue = Queue()
         self.buffer = []
         self.sep = sep
+        self.incomplete_buffer=""
         
         # Register this stream instance
         with self._lock:
             WebOutputStream._streams[language] = self
             logger.debug(f"Created WebOutputStream for language: {language}")
 
-    def write(self, translated_text: str):
+    def write(self, translated_text: str, is_complete: bool):
         """Write translated text to queue and buffer"""
-        self.queue.put(translated_text)
-        self.buffer.append(translated_text)
+        if not is_complete:
+            self.queue.put(translated_text)
+            self.buffer.append(translated_text)
+
+        else:   
+            self.incomplete_buffer = translated_text
+            
+
         logger.debug(f"WebOutputStream for language {self.language} send new content: {translated_text}")
+
 
     def get_new_content(self) -> str:
         """Get new content since last check"""
@@ -126,6 +138,9 @@ class WebOutputStream(TextOutputStreamBase):
     def get_full_content(self) -> str:
         """Get all content from buffer"""
         return self.sep.join(self.buffer)
+    
+    def get_incomplete_content(self) -> str:
+        return self.incomplete_buffer
 
     @classmethod
     def get_stream(cls, language: str) -> Optional['WebOutputStream']:
@@ -193,11 +208,11 @@ class OnlineTranslator():
             logger.error(f"Error translating to {self.tgt_lang}\nError:\n\n{e}")
             return "[ Translation Error ]" 
         
-    def translate_to_output(self, tokenized_text: torch.Tensor) -> None:
+    def translate_to_output(self, tokenized_text: torch.Tensor, is_complete: bool) -> None:
         translation = self.translate_tokenized_text(tokenized_text)
 
         for output_stream in self.output_streams:
-            output_stream.write(translation)
+            output_stream.write(translation, is_complete)
 
         
 
@@ -287,15 +302,32 @@ class TranslationPipeline():
 
 
     def _translation_thread(self):
+        """
+        Get tokenized text from the queue and translate it to all target languages
+        Only translate incomplete text if the queue is empty.
+        """
         while self.should_run:
             try:
-                T, tokenized_text = self.translation_queue.get(timeout=1)
+                is_complete,Tokenizers, tokenized_text = self.translation_queue.get(timeout=1)
             except queue.Empty:
                 logger.debug("Translation queue is empty")
                 time.sleep(0.5)
                 continue
+            
+            queue_size = self.translation_queue.qsize()
+            logger.debug(f"Translation queue size: {queue_size}")
+            
 
-            T.translate_to_output(tokenized_text)
+            if is_complete:
+                for T in Tokenizers:
+                    T.translate_to_output(tokenized_text,is_complete)
+            elif self.translation_queue.not_empty:
+                logger.warning("Skipping incomplete translation as queue is not empty")
+                continue
+            else:
+                for T in Tokenizers:
+                    T.translate_to_output(tokenized_text,is_complete)
+
 
 
 
@@ -331,16 +363,23 @@ class TranslationPipeline():
             
 
 
-    def put_text(self,text:str):
+    def put_text(self,text:str, incomplete_text: str):
 
+        # Complete text first
         for output_stream in self.original_output_streams:
-            output_stream.write(text)
+            output_stream.write(text, is_complete=True)
+            output_stream.write(incomplete_text, is_complete=False)
         
 
         tokenized_text = self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
+        
+        self.translation_queue.put((True,self.translators,tokenized_text))
+        
+        # Incoplete text
 
-        for T in self.translators:
-            self.translation_queue.put((T,tokenized_text))
+        tokenized_incomplete_text = self.tokenizer(incomplete_text, return_tensors="pt").to(TORCH_DEVICE)
+
+        self.translation_queue.put((False,self.translators,tokenized_incomplete_text))
 
         
 

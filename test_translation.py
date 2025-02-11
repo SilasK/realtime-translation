@@ -6,17 +6,32 @@ CONFIG_FILE = "translation_server_config.yaml"
 
 from src.utils.logging import add_other_loggers,logger
 import sys
+from pathlib import Path
 
 ## Set up logging
 logger.remove()
 logger.add(sys.stderr, level="DEBUG", format="{time:%H:%M:%S.%f}<level>[{level}]: {message}</level>", colorize=True)
 
-logger.add("logs/translation_server.log", level="DEBUG", format="{time:%H:%M:%S.%f}[{level}]: {message}", colorize=True)
+logfile= Path("logs/translation_test.log")
+logfile.unlink(missing_ok=True)
+logger.add(logfile, level="DEBUG", format="{time:%H:%M:%S.%f}[{level}]: {message}", colorize=True)
 
-add_other_loggers(["src.whisper_streaming.online_asr", "sr.translation.translation", "src.whisper.audio","src.whisper.timestamped_words"], level="DEBUG")
+
+
+add_other_loggers(["src.translation.server","src.whisper_streaming.online_asr", "sr.translation.translation", "src.whisper.audio","src.whisper.timestamped_words"], level="DEBUG")
+
 
 signal.signal(signal.SIGINT, server.signal_handler)
 
-translation_server_arguments = server.init(CONFIG_FILE,log_to_console=True)
 
-server.main_loop(*translation_server_arguments)
+
+
+
+
+args = server.load_config(CONFIG_FILE)
+
+
+translation_server_arguments = server.initialize(args, log_to_console=True, log_to_web=False)
+
+server.main_loop(args,*translation_server_arguments)
+

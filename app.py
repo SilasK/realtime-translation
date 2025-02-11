@@ -30,7 +30,7 @@ args = server.load_config(CONFIG_FILE)
 # subset only to the languages that are supported by the translation pipeline
 LanguageName = {l: LanguageName[l] for l in [args.lan] + args.target_languages}
 
-translation_server_arguments = server.initialize(args, log_to_console=False, log_to_web=True)
+translation_server_arguments = server.initialize(args, log_to_console=True, log_to_web=True)
 
 def run_translation_pipeline():
     server.main_loop(args,*translation_server_arguments)
