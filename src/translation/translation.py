@@ -67,9 +67,9 @@ class ConsoleOutputStream(TextOutputStreamBase):
 
     def write(self, translated_text: str, is_complete: bool):
         if is_complete:
-            print(f"\033[{self.color}m[{self.language}]\033[0m: {translated_text}")
+            logger.info(f"\033[{self.color}m[{self.language}]\033[0m: {translated_text}")
         else:
-            print(f"\033[{self.color}m[{self.language}]\033[0m: \033[31m{translated_text}\033[0m")
+            logger.info(f"\033[{self.color}m[{self.language}]\033[0m: \033[31m{translated_text}\033[0m")
 
 class FileOutputStream(TextOutputStreamBase):
     def __init__(self, file_path: Path | str, language: str):
@@ -117,7 +117,7 @@ class WebOutputStream(TextOutputStreamBase):
 
     def write(self, translated_text: str, is_complete: bool):
         """Write translated text to queue and buffer"""
-        if not is_complete:
+        if is_complete:
             self.queue.put(translated_text)
             self.buffer.append(translated_text)
 
@@ -196,11 +196,16 @@ class OnlineTranslator():
 
     def translate_tokenized_text(self, tokenized_text: torch.Tensor) -> str:
         try:
-            logger.debug(f"Translating text to {self.tgt_lang}")
+            
+            before_inference = time.time()
             generated_tokens = self.model.generate(**tokenized_text,
                                                     **self.inference_kwargs)
             
-            return self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
+            translated_text = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
+
+            logger.debug(f"Translating text to {self.tgt_lang} took {time.time()-before_inference:.2f}s")
+
+            return translated_text
 
             
 
@@ -221,11 +226,6 @@ class OnlineTranslator():
             output_stream.stop()
 
 
-
-
-# TODO: keybord interupt handling. write stoping but wait until all threads are stopped.
-   # TODO: make a central queue for all model executions 
-# TODO: pipeline start function
 
 
         
