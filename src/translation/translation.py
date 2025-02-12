@@ -308,25 +308,35 @@ class TranslationPipeline():
         """
         while self.should_run:
             try:
-                is_complete,Tokenizers, tokenized_text = self.translation_queue.get(timeout=1)
+                text_segment,is_complete = self.translation_queue.get(timeout=1)
             except queue.Empty:
                 logger.debug("Translation queue is empty")
                 time.sleep(0.5)
                 continue
             
-            queue_size = self.translation_queue.qsize()
-            logger.debug(f"Translation queue size: {queue_size}")
+
+            
             
 
-            if is_complete:
-                for T in Tokenizers:
+            if is_complete or self.translation_queue.empty():
+
+                tokenized_text = self._tokenize(text_segment[2])
+
+                for T in self.translators:
                     T.translate_to_output(tokenized_text,is_complete)
-            elif self.translation_queue.not_empty:
-                logger.warning("Skipping incomplete translation as queue is not empty")
-                continue
+ 
             else:
-                for T in Tokenizers:
-                    T.translate_to_output(tokenized_text,is_complete)
+                
+                queue_size = self.translation_queue.qsize()
+
+                
+                logger.warning("Skipping incomplete translation as queue is not empty")
+                logger.info(f"Translation queue size: {queue_size}")
+                
+
+
+
+
 
 
 
@@ -361,26 +371,23 @@ class TranslationPipeline():
 
             logger.info("Translation pipeline stopped")
             
+    def _tokenize(self,text):
+        return self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
 
 
-    def put_text(self,text:str, incomplete_text: str):
+    def put_text(self,transcription_segment: tuple, is_complete: bool):
 
+        assert transcription_segment[2]!="", "Empty text segment"
         # Complete text first
         for output_stream in self.original_output_streams:
-            output_stream.write(text, is_complete=True)
-            output_stream.write(incomplete_text, is_complete=False)
+            output_stream.write(transcription_segment[2], is_complete=is_complete)
+
         
-
-        tokenized_text = self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
         
-        self.translation_queue.put((True,self.translators,tokenized_text))
         
-        # Incoplete text
-
-        tokenized_incomplete_text = self.tokenizer(incomplete_text, return_tensors="pt").to(TORCH_DEVICE)
-
-        self.translation_queue.put((False,self.translators,tokenized_incomplete_text))
-
+        
+        self.translation_queue.put((transcription_segment,is_complete))
+      
         
 
 LanguageName = {

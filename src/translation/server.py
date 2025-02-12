@@ -121,18 +121,24 @@ def main_loop(args,audio_source, transcriber, translation_pipeline, timestamped_
         
                 o,incomplete = transcriber.process_iter()
                 last_transcribed = time.time()
-                if o[0] is  None:
+                if o[0] is  None and incomplete[0 ] is None:
                     if not args.vac: logger.warning("No output from transcriber.")
 
                     time.sleep(0.9*min_chunk)
+
+                if o[0] is not None:
                     
-                else:
                     log_transcript(o, start,timestamped_file=timestamped_file)
+                    
+
+
+
+                    translation_pipeline.put_text(o,is_complete=True)
+
+                if incomplete[0] is not None:
+
                     logger.debug("Incomplete: "+incomplete[2])
-
-
-
-                    translation_pipeline.put_text(o[2],incomplete[2])
+                    translation_pipeline.put_text(incomplete,is_complete=False)
 
 
                 
