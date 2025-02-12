@@ -10,7 +10,7 @@ input_audio: "/Users/silas/GitHub/whisper_streaming_web/mydata/preche.wav"
 #input_audio: "mic"
 
 model: large-v3-turbo
- 
+
 task: transcribe
 backend: mlx-whisper
 min_chunk_size: 2.0

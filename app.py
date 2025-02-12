@@ -22,7 +22,7 @@ log_file.unlink(missing_ok=True)
 
 logger.add(log_file, level="DEBUG", format="{time:%H:%M:%S.%f}[{level}]: {message}", colorize=True)
 
-add_other_loggers(["src.translation.server","src.whisper_streaming.online_asr", "sr.translation.translation", "src.whisper.audio","src.whisper.timestamped_words"], level="DEBUG")
+add_other_loggers(["src.translation.server","src.whisper_streaming.online_asr", "src.translation.translation", "src.whisper.audio","src.whisper.timestamped_words"], level="DEBUG")
 
 
 
@@ -69,5 +69,5 @@ if __name__ == '__main__':
     app.run(
         host='0.0.0.0',  # For local testing use localhost; change if needed.
         port=5000,
-        debug=True
+        debug=False
     )

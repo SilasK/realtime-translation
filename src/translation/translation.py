@@ -26,8 +26,8 @@ def define_torch_device():
         return "cpu"
     
 
-TRANSLATION_MODEL = "facebook/m2m100_1.2B" 
-#"facebook/m2m100_418M"
+TRANSLATION_MODEL = "facebook/m2m100_418M" #"facebook/m2m100_1.2B" 
+
 
 TORCH_DEVICE = define_torch_device()
 logger.info(f"Using torch device: {TORCH_DEVICE}")
