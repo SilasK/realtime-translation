@@ -180,6 +180,9 @@ class OnlineTranslator():
             self.output_streams.append(ConsoleOutputStream(tgt_lang))
         if write_to_web:
             self.output_streams.append(WebOutputStream(tgt_lang))
+
+        Path("logs").mkdir(exist_ok=True)        
+        self.log_file = open(f"logs/translation_{tgt_lang}.log", 'w', encoding='utf-8')
         
         assert len(self.output_streams) > 0, "No output stream defined"
 
@@ -205,6 +208,10 @@ class OnlineTranslator():
 
             logger.debug(f"Translating text to {self.tgt_lang} took {time.time()-before_inference:.2f}s")
 
+
+
+
+
             return translated_text
 
             
@@ -216,12 +223,17 @@ class OnlineTranslator():
     def translate_to_output(self, tokenized_text: torch.Tensor, is_complete: bool) -> None:
         translation = self.translate_tokenized_text(tokenized_text)
 
+        prefix = "[ Complete ] " if is_complete else "[Incomplete] "
+        self.log_file.write(prefix+translation+"\n")
+        self.log_file.flush()
+
         for output_stream in self.output_streams:
             output_stream.write(translation, is_complete)
 
         
 
     def stop(self):
+        self.log_file.close()
         for output_stream in self.output_streams:
             output_stream.stop()
 
@@ -249,6 +261,7 @@ class TranslationPipeline():
         self.src_lang = src_lang
         self.tokenizer = M2M100Tokenizer.from_pretrained(TRANSLATION_MODEL, src_lang=self.src_lang)
 
+        self.log_file = open(f"logs/original_{src_lang}.log", 'w', encoding='utf-8')
 
         self.original_output_streams = []
         if log_to_console:
@@ -314,8 +327,10 @@ class TranslationPipeline():
                 time.sleep(0.5)
                 continue
             
-
             
+            prefix = "[ Complete ] " if is_complete else "[Incomplete] "
+            self.log_file.write(prefix+text_segment[2]+"\n")
+            self.log_file.flush()
             
 
             if is_complete or self.translation_queue.empty():

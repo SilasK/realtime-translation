@@ -5,3 +5,16 @@
 - [ ] Web interface has no space.
 - [ ] Sentence stop doesn't care about "
 - [ ] Break at least on comma
+
+# BEtter translations
+
+- translation differ from time to time -> no exact match
+- complete might be already in incomplete
+- glitches if no audio -> VAC
+- reprocess multiple times the same incompolete text
+
+* Always keep last sentence in sentence segmentation?
+
+
+- [ ] Don't put empty or very short incomplete text
+- [ ] 
