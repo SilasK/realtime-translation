@@ -18,7 +18,7 @@ logger.add(logfile, level="DEBUG", format="{time:%H:%M:%S.%f}[{level}]: {message
 
 
 
-add_other_loggers(["src.translation.server","src.whisper_streaming.online_asr", "sr.translation.translation", "src.whisper.audio","src.whisper.timestamped_words"], level="DEBUG")
+add_other_loggers(["src.translation.server","src.whisper_streaming.online_asr", "src.translation.translation", "src.whisper.audio","src.whisper.timestamped_words"], level="DEBUG")
 
 
 signal.signal(signal.SIGINT, server.signal_handler)

@@ -2,8 +2,8 @@ lan: fr # source language
 target_languages:
   - en
   - de
-  - uk
-  - es
+#  - uk
+#  - es
 
 warmup_file: "/Users/silas/GitHub/whisper_streaming_web/mydata/samples_jfk.wav"
 input_audio: "/Users/silas/GitHub/whisper_streaming_web/mydata/preche.wav"
