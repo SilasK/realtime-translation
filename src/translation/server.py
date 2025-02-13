@@ -18,6 +18,11 @@ from .translation import TranslationPipeline
 from ..whisper_streaming.whisper_online import asr_factory
 from ..whisper_streaming.online_asr import words_to_sentences
 from ..utils.logging import log_transcript
+from ..utils.monitor import Monitor
+
+
+
+monitor = Monitor()
 
 
 SAMPLING_RATE = 16000
@@ -108,19 +113,23 @@ def main_loop(args,audio_source, transcriber, translation_pipeline, timestamped_
 
         logger.info("Ready to process audio.")
         audio_source.start()
+
         
 
         
         start = time.time()
+        monitor.set_start_time(start)
         
         last_transcribed = np.nan
         while translation_loop_running:
             try:
                 
-                logger.warning(f"Time since last transcribed: {time.time()- last_transcribed:.2f}s")
+
+                # monitor.log("General","Transcription","Time since last transcribed",time.time()- last_transcribed,"This is for debug")
         
                 o,incomplete = transcriber.process_iter()
                 last_transcribed = time.time()
+
                 if o[0] is  None and incomplete[0 ] is None:
                     if not args.vac: logger.warning("No output from transcriber.")
 
@@ -141,16 +150,17 @@ def main_loop(args,audio_source, transcriber, translation_pipeline, timestamped_
                     translation_pipeline.put_text(incomplete,is_complete=False)
 
 
-                
-                translation_queue_size = translation_pipeline.translation_queue.qsize()
-                logger.debug(f"Translation queue size: {translation_queue_size}")
+            
 
             except Exception as e:
                 logger.error(f"Assertion error: {e}")
                 raise e
             
-            now = time.time() - start
-            logger.debug(f"Processed chunk at {now:.2f}s")
+            
+            # monitor.log("General", None, "processed audio", time.time() - start, "Time since start")
+
+
+            
             
     except Exception as e:
         logger.error(f"Error during processing: {e}")

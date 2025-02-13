@@ -8,9 +8,11 @@ import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from ..utils.monitor import Monitor
+
 
 logger = logging.getLogger(__name__)
-
+monitor = Monitor()
 
 from transformers import M2M100Config, M2M100ForConditionalGeneration, M2M100Tokenizer
 
@@ -206,7 +208,11 @@ class OnlineTranslator():
             
             translated_text = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
 
-            logger.debug(f"Translating text to {self.tgt_lang} took {time.time()-before_inference:.2f}s")
+            translation_time = time.time()-before_inference
+
+            logger.debug(f"Translating text to {self.tgt_lang} took {translation_time:.2f}s")
+
+            monitor.log("Translation", self.tgt_lang, "translation time", translation_time,"")
 
 
 
@@ -226,6 +232,8 @@ class OnlineTranslator():
         prefix = "[ Complete ] " if is_complete else "[Incomplete] "
         self.log_file.write(prefix+translation+"\n")
         self.log_file.flush()
+
+        
 
         for output_stream in self.output_streams:
             output_stream.write(translation, is_complete)
@@ -320,6 +328,9 @@ class TranslationPipeline():
         Only translate incomplete text if the queue is empty.
         """
         while self.should_run:
+
+            
+
             try:
                 text_segment,is_complete = self.translation_queue.get(timeout=1)
             except queue.Empty:
@@ -329,24 +340,32 @@ class TranslationPipeline():
             
             
             prefix = "[ Complete ] " if is_complete else "[Incomplete] "
+            subcategory = "Complete" if is_complete else "Incomplete"
             self.log_file.write(prefix+text_segment[2]+"\n")
-            self.log_file.flush()
+
+            monitor.log_delay("Transcription", subcategory, text_segment[0], text_segment[2])
             
 
-            if is_complete or self.translation_queue.empty():
+
+            self.log_file.flush()
+
+            queue_size = self.translation_queue.qsize()
+            monitor.log("Translation", None, "queue size", queue_size, "")
+            
+
+            if is_complete or (queue_size == 0):
 
                 tokenized_text = self._tokenize(text_segment[2])
 
                 for T in self.translators:
                     T.translate_to_output(tokenized_text,is_complete)
+
+                monitor.log_delay("Translation", subcategory, text_segment[0], text_segment[2])
  
             else:
-                
-                queue_size = self.translation_queue.qsize()
 
-                
                 logger.warning("Skipping incomplete translation as queue is not empty")
-                logger.info(f"Translation queue size: {queue_size}")
+     
                 
 
 
