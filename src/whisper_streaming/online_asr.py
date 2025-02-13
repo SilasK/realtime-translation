@@ -474,6 +474,13 @@ class OnlineASRProcessor:
             )
                 
 
+    def close(self):
+
+        if self.output_folder is not None:
+            self.transcribed_word_file.close()
+            self.full_transcript_file.close()
+            self.transcribed_sentence_file.close()
+
 
 
     def finish(self):
@@ -493,9 +500,7 @@ class OnlineASRProcessor:
             self.full_transcript_file.write(f"{incomplete[2]}\n")
             self._write_transcribed_words(incomplete_words)
         
-            self.transcribed_word_file.close()
-            self.full_transcript_file.close()
-            self.transcribed_sentence_file.close()
+
 
 
 

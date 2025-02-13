@@ -61,6 +61,8 @@ def initialize(args,log_to_console=True,
     # callback funcion for audio 
     def put_audiochunk_in_transcriber(chunk):
         transcriber.insert_audio_chunk(chunk)
+        monitor.log("Transcription","Audio","audio_buffer_size",len(transcriber.audio_buffer),"Audio buffer size")
+        
         
 
     audio_source = AudioInput(callback= put_audiochunk_in_transcriber, source=args.input_audio, sample_rate=SAMPLING_RATE, chunk_size=min_chunk)
@@ -74,10 +76,6 @@ def initialize(args,log_to_console=True,
         output_folder = Path(output_folder)
         output_folder.mkdir(exist_ok=True, parents=True)
 
-        timestamped_file = open(output_folder / f"transcript_with_timestamps.txt","w")
-    else:
-        timestamped_file = None
-    
 
     translation_pipeline = TranslationPipeline(args.lan, args.target_languages, 
     output_folder=output_folder,
@@ -89,7 +87,7 @@ def initialize(args,log_to_console=True,
 
     logger.info("Everything set up!")
 
-    return audio_source, transcriber, translation_pipeline, timestamped_file, min_chunk
+    return audio_source, transcriber, translation_pipeline, min_chunk
 
 
 ### Main loop   
@@ -104,7 +102,7 @@ def signal_handler(signum, frame):
     translation_loop_running = False
 
 
-def main_loop(args,audio_source, transcriber, translation_pipeline, timestamped_file, min_chunk):
+def main_loop(args,audio_source, transcriber, translation_pipeline, min_chunk):
 
 
     
@@ -137,7 +135,7 @@ def main_loop(args,audio_source, transcriber, translation_pipeline, timestamped_
 
                 if o[0] is not None:
                     
-                    log_transcript(o, start,timestamped_file=timestamped_file)
+
                     
 
 
@@ -166,10 +164,7 @@ def main_loop(args,audio_source, transcriber, translation_pipeline, timestamped_
         logger.error(f"Error during processing: {e}")
     finally:
         audio_source.stop()
-        # o,incomplete = transcriber.finish()
-        # log_transcript(o, start,timestamped_file=timestamped_file)
-        timestamped_file.close()
-        #translation_pipeline.put_text(o[2])
+        transcriber.close()
         translation_pipeline.stop()
 
 

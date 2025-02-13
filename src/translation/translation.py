@@ -364,7 +364,7 @@ class TranslationPipeline():
  
             else:
 
-                logger.warning("Skipping incomplete translation as queue is not empty")
+                logger.warning("Skipping incomplete translation as there are {} more items in the queue".format(queue_size))
      
                 
 
