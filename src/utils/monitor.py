@@ -1,10 +1,10 @@
-
-
 import logging
 from threading import Lock
 from pathlib import Path
 import numpy as np
 import time
+import pandas as pd
+import threading
 
 
 class Monitor:
@@ -27,36 +27,105 @@ class Monitor:
         file_handler = logging.FileHandler("logs/monitor.log")
         file_handler.setLevel(logging.DEBUG)
 
-        formatter = logging.Formatter('%(asctime)s %(message)s')
+        formatter = logging.Formatter("%(asctime)s %(message)s")
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
         self.start_time = np.nan
 
-        self.data = []
+        self.data_list = []
 
+        self.data = pd.DataFrame(
+            columns=["category", "subcategory", "number_name", "number", "message"],
+            index=pd.Index([], name="timestamp"),
+        )
+        self.should_monitor = False
 
-    def set_start_time(self, start_time):
+    def start(self, start_time=None):
+        self.should_monitor = True
         self.start_time = start_time
         self.log("General", None, "start_time", start_time, "Recording started.")
 
+        self.logger.debug("Monitor started.")
+
+        self.analysis_thread = threading.Thread(target=self._analysis_thread)
+        self.analysis_thread.start()
+
+    def stop(self):
+        self.should_monitor = False
+        self.analysis_thread.join()
 
     def log(self, category, subcategory, number_name, number, message):
         # Build the log message with timestamp, category, subcategory, metric name and value, and a message.
 
-        self.data.append((category, subcategory, number_name, number, message))
+        self.data_list.append(
+            (time.time(), category, subcategory, number_name, number, message)
+        )
 
         log_line = f"{category}"
         if subcategory:
             log_line += f".{subcategory}"
         log_line += f" | {number_name}={number} | {message}"
-        self.logger.debug(log_line)
 
+        self.logger.debug(log_line)
 
     def log_delay(self, category, subcategory, recording_time, message):
 
         expected = self.start_time + recording_time
         delay = time.time() - expected
-        
+
         self.log(category, subcategory, "delay", delay, message)
-     
+
+    def collect_data(self):
+
+        if len(self.data_list) > 0:
+            new_data = pd.DataFrame(
+                self.data_list,
+                columns=[
+                    "timestamp",
+                    "category",
+                    "subcategory",
+                    "number_name",
+                    "number",
+                    "message",
+                ],
+            )
+            new_data.timestamp = pd.to_datetime(new_data["timestamp"], unit="s")
+            new_data = new_data.set_index("timestamp")
+
+            self.data_list = []
+
+            self.data = pd.concat([self.data, new_data])
+
+        return self.data
+
+    def _analysis_thread(self):
+        self.logger.debug("Monitor analysis thread started.")
+        while self.should_monitor:
+            time.sleep(5)
+            # Perform analysis on the data collected.
+
+            if len(self.data_list) > 0:
+                self.collect_data()
+
+                delay_data = self.data.query("number_name=='delay'")
+
+                for group, df in delay_data.groupby(
+                    ["category", "subcategory", "number_name"]
+                ):
+
+                    group_name = group[0]
+                    if group[1]:
+                        group_name += f".{group[1]}"
+
+                    df = df.iloc[-10:]
+
+                    number_name = group[2]
+
+                    tendance = df.number.diff().dropna()
+                    self.logger.info(
+                        f"\n Monitor for: {group_name}:{number_name}\n"
+                        f"Mean: {df.number.mean()}\n"
+                        f"Max: {df.number.max()} - Min: {df.number.min()}\n"
+                        f"Tendance: {tendance.mean()}"
+                    )
