@@ -4,6 +4,8 @@ from src.translation import server
 CONFIG_FILE = "translation_server_config.yaml"
 
 from src.utils.logging import add_other_loggers, logger
+from src.utils.monitor import Monitor
+from src.utils.logging import InterceptHandler
 import sys
 from pathlib import Path
 
@@ -36,6 +38,9 @@ add_other_loggers(
     ],
     level="DEBUG",
 )
+
+monitor = Monitor()
+monitor.logger.handlers.append(InterceptHandler())
 
 
 signal.signal(signal.SIGINT, server.signal_handler)

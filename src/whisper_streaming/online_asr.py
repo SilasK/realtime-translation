@@ -6,6 +6,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+
 class HypothesisBuffer:
 
     def __init__(self, logfile=sys.stderr):
@@ -86,7 +87,7 @@ def concatenate_tsw(
     sep=None,
     offset=0,
 ):
-    
+
     # logger.warning("Use TimeStampedSequence instead", DeprecationWarning)
 
     # concatenates the timestamped words or sentences into one sequence that is flushed in one line
@@ -94,8 +95,6 @@ def concatenate_tsw(
     # return: (beg1,end-of-last-sentence,"concatenation of sentences") or (None, None, "") if empty
     if sep is None:
         sep = ""
-
-    
 
     t = sep.join(s[2] for s in tsw)
     if len(tsw) == 0:
@@ -107,7 +106,6 @@ def concatenate_tsw(
     return (b, e, t)
 
 
-
 def words_to_sentences(words):
     """Uses naive abroach to  sentence segmentation of words.
     Returns: [(beg,end,"sentence 1"),...]
@@ -115,55 +113,51 @@ def words_to_sentences(words):
     import re
 
     all_sentences = []
-    sentence=[]
-
-
+    sentence = []
 
     for w in words:
         t = w[2]
-        
+
         break_sentence = False
-        
-        if re.search(r'[.?!]', t):
-            if not re.search(r'\.', t):
-                # It is a ! or  ?    
-                break_sentence= True
+
+        if re.search(r"[.?!]", t):
+            if not re.search(r"\.", t):
+                # It is a ! or  ?
+                break_sentence = True
             else:
                 # full stop(s)
-                if re.match(r'\.',t):
-                    logger.warning(f'Full stop at the beginning of the word "{t}", Ignoring it.')
-                    w[2]= w[2][1:]
+                if re.match(r"\.", t):
+                    logger.warning(
+                        f'Full stop at the beginning of the word "{t}", Ignoring it.'
+                    )
+                    w[2] = w[2][1:]
                 # Ellipsis
-                elif re.search(r'\.\.\.',t):
-                    w[2].replace('...',r'\u2026')
-                elif re.search(r'\d\.',t):
+                elif re.search(r"\.\.\.", t):
+                    w[2].replace("...", r"\u2026")
+                elif re.search(r"\d\.", t):
                     pass
                 else:
-                    break_sentence= True
+                    break_sentence = True
 
         sentence.append(w)
         if break_sentence:
             all_sentences.append(concatenate_tsw(sentence))
-            sentence=[]
+            sentence = []
 
-
-
-    
     if break_sentence:
         tailing_words = []
     else:
         tailing_words = sentence
 
-
-    return all_sentences,tailing_words
+    return all_sentences, tailing_words
 
 
 def concat_two_segments(first, second):
     """Concatenate two segments into one segment, check if one is None.
     This function will be replaced by simply + of TimeStampedSequence objects."""
-    
+
     if first[1] is None:
-        res = second # if second is also None, it will return (None, None, "")
+        res = second  # if second is also None, it will return (None, None, "")
     elif second[1] is None:
         res = first
     else:
@@ -207,7 +201,9 @@ class OnlineASRProcessor:
         else:
             self.output_folder = Path(output_folder)
             if self.output_folder.exists():
-                logger.warning(f"Output folder {output_folder} already exists. Files will be appended.")
+                logger.warning(
+                    f"Output folder {output_folder} already exists. Files will be appended."
+                )
             self.output_folder.mkdir(parents=True, exist_ok=True)
 
         self.init()
@@ -222,49 +218,46 @@ class OnlineASRProcessor:
             raise ValueError(
                 f"buffer_trimming_sec is set to {self.buffer_trimming_sec}, which is larger than the max for Whisper."
             )
-        
+
         if self.output_folder is not None:
-            
-            self.transcribed_word_file= (self.output_folder / f"transcribed_words.csv").open("a")
 
-            self.full_transcript_file = (self.output_folder / f"full_transcript.md").open("a")
+            self.transcribed_word_file = (
+                self.output_folder / f"transcribed_words.csv"
+            ).open("a")
 
-            self.transcribed_sentence_file = (self.output_folder / f"sentence_transcript.csv").open("a")
+            self.full_transcript_file = (
+                self.output_folder / f"full_transcript.md"
+            ).open("a")
+
+            self.transcribed_sentence_file = (
+                self.output_folder / f"sentence_transcript.csv"
+            ).open("a")
 
     def init(self, offset=None):
         """run this when starting or restarting processing"""
         self.audio_buffer = np.array([], dtype=np.float32)
-        self.len_audio_buffer_last_transcribed= 0
+        self.len_audio_buffer_last_transcribed = 0
         self.transcript_buffer = HypothesisBuffer(logfile=self.logfile)
         self.buffer_time_offset = 0
         if offset is not None:
             self.buffer_time_offset = offset
         self.transcript_buffer.last_commited_time = self.buffer_time_offset
-        self.promt = "" 
+        self.promt = ""
         self.final_transcript = []
         self.commited_not_final = []
 
-
-
-    
-
-
     def _write_transcribed_words(self, words):
-        
+
         if self.output_folder is not None:
-            now = datetime.now().strftime('%T.%f')[:-3]
+            now = datetime.now().strftime("%T.%f")[:-3]
             for w in words:
-                self.transcribed_word_file.write(f'{now},{w[0]:.3f},{w[1]:.3f},"{w[2]}"\n')
+                self.transcribed_word_file.write(
+                    f'{now},{w[0]:.3f},{w[1]:.3f},"{w[2]}"\n'
+                )
             self.transcribed_word_file.flush()
-            
-        
- 
 
     def insert_audio_chunk(self, audio):
         self.audio_buffer = np.append(self.audio_buffer, audio)
-
-   
-        
 
     def process_iter(self):
         """Runs on the current audio buffer.
@@ -272,21 +265,19 @@ class OnlineASRProcessor:
         The non-emty text is confirmed (committed) partial transcript.
         """
 
-        
-        len_audio_buffer_now= len(self.audio_buffer)
+        len_audio_buffer_now = len(self.audio_buffer)
         if len_audio_buffer_now == self.len_audio_buffer_last_transcribed:
-            #logger.debug("No new audio data.")
-            return (None, None, ""),(None, None, "")
-    
-        self.len_audio_buffer_last_transcribed = len_audio_buffer_now
+            # logger.debug("No new audio data.")
+            return (None, None, ""), (None, None, "")
 
+        self.len_audio_buffer_last_transcribed = len_audio_buffer_now
 
         logger.debug(
             f"transcribing {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f} seconds from {self.buffer_time_offset:2.2f}"
         )
 
         ## Transcribe and format the result to [(beg,end,"word1"), ...]
-        
+
         # if len(self.promt) > 50:
         #     logger.debug(f"Transcribing with prompt: {self.promt[:25]}...{self.promt[-25:]}")
         # else:
@@ -294,24 +285,18 @@ class OnlineASRProcessor:
         res = self.asr.transcribe(self.audio_buffer, init_prompt=self.promt)
         tsw = self.asr.ts_words(res)
 
-
         # insert into HypothesisBuffer, and get back the commited words
         self.transcript_buffer.insert(tsw, self.buffer_time_offset)
         commited_tsw = self.transcript_buffer.flush()
-
-        
-
 
         completed = (None, None, "")
         if len(commited_tsw) > 0:
 
             self._write_transcribed_words(commited_tsw)
-            
 
             logger.debug(f"New commited words : {concatenate_tsw(commited_tsw)[2]}")
 
             self.commited_not_final.extend(commited_tsw)
-
 
             # Define `completed` and `incomplete` based on the buffer_trimming_way
             # completed will be returned at the end of the function.
@@ -319,113 +304,94 @@ class OnlineASRProcessor:
 
             completed_words = self.get_completed_words()
 
-            if len(completed_words) > 0:      
-                
-            
-                self.final_transcript.extend(completed_words) # add whole time stamped sentences / or words to commited list
+            if len(completed_words) > 0:
+
+                self.final_transcript.extend(
+                    completed_words
+                )  # add whole time stamped sentences / or words to commited list
 
                 if self.output_folder is not None:
-                    now = datetime.now().strftime('%T.%f')[:-3]
+                    now = datetime.now().strftime("%T.%f")[:-3]
                     for s in completed_words:
-                        self.transcribed_sentence_file.write(f'{now},{s[0]:.3f},{s[1]:.3f},"{s[2]}"\n')
+                        self.transcribed_sentence_file.write(
+                            f'{now},{s[0]:.3f},{s[1]:.3f},"{s[2]}"\n'
+                        )
                     self.transcribed_sentence_file.flush()
-            
 
-            
+                completed = concatenate_tsw(completed_words)
+                self.promt = (self.promt + completed[2])[
+                    -200:
+                ]  # keep only last 200 characters
 
-                completed= concatenate_tsw(completed_words)
-                self.promt = (self.promt + completed[2])[-200:] # keep only last 200 characters
-        
-        
-        
-        commited_but_not_final = concatenate_tsw(self.commited_not_final)            
+        commited_but_not_final = concatenate_tsw(self.commited_not_final)
         incomplete = concatenate_tsw(self.transcript_buffer.complete())
-                
 
-        logger.debug(f"\n    COMPLETE NOW: {completed[2]}\n"
-                    f"    COMMITTED (but not Final): {commited_but_not_final[2]}\n"
-                    f"    INCOMPLETE: {incomplete[2]}"
-                    )
+        logger.debug(
+            f"\n    COMPLETE NOW: {completed[2]}\n"
+            f"    COMMITTED (but not Final): {commited_but_not_final[2]}\n"
+            f"    INCOMPLETE: {incomplete[2]}"
+        )
         uncommitted = concat_two_segments(commited_but_not_final, incomplete)
 
-
-        if (self.output_folder is not None) and (completed[2]!=""):
+        if (self.output_folder is not None) and (completed[2] != ""):
 
             self.full_transcript_file.write(f"{completed[2]}\n")
             self.full_transcript_file.flush()
-            
-
-        
-
-
 
         return completed, uncommitted
-    
-
-
 
     def get_completed_words(self):
-        
+
         if self.buffer_trimming_way == "sentence":
-            
-            sentences,tailing_words = words_to_sentences(self.commited_not_final)
 
-            
-
-
+            sentences, tailing_words = words_to_sentences(self.commited_not_final)
 
             if len(sentences) > 0:
 
-                
-                identified_sentence= "\n    - ".join([f"{s[0]*1000:.0f}-{s[1]*1000:.0f} {s[2]}" for s in sentences])
-                logger.debug(f"[Sentence-segmentation] identified sentences:\n    - {identified_sentence}")
+                identified_sentence = "\n    - ".join(
+                    [f"{s[0]*1000:.0f}-{s[1]*1000:.0f} {s[2]}" for s in sentences]
+                )
+                logger.debug(
+                    f"[Sentence-segmentation] identified sentences:\n    - {identified_sentence}"
+                )
 
                 if len(tailing_words) > 0:
-                    logger.debug(f"[Sentence-segmentation] Tailing words: {concatenate_tsw(tailing_words)[2]}")
-
+                    logger.debug(
+                        f"[Sentence-segmentation] Tailing words: {concatenate_tsw(tailing_words)[2]}"
+                    )
 
                 #
                 # TODO: here paragraph breaks can be added
-                
 
                 self.chunk_at(sentences[-1][1])
-                self.commited_not_final = tailing_words 
+                self.commited_not_final = tailing_words
                 return sentences
-            
-            else:
-                logger.debug(f"[Sentence-segmentation] no full sentence. Only have: "+ concatenate_tsw(tailing_words)[2]
-                             )
-                
- 
 
+            else:
+                logger.debug(
+                    f"[Sentence-segmentation] no full sentence. Only have: "
+                    + concatenate_tsw(tailing_words)[2]
+                )
 
             # break audio buffer anyway if it is too long
 
-        if len(self.audio_buffer) / self.SAMPLING_RATE < self.buffer_trimming_sec :
+        if len(self.audio_buffer) / self.SAMPLING_RATE < self.buffer_trimming_sec:
             return []
         else:
-                    
+
             completed_words = self.chunk_completed_segment(self.commited_not_final)
 
             if self.buffer_trimming_way == "sentence":
-                logger.warning(f"Chunk segment after {self.buffer_trimming_sec} seconds!"
-                                " Even if no sentence was found!"
-                            )
+                logger.warning(
+                    f"Chunk segment after {self.buffer_trimming_sec} seconds!"
+                    " Even if no sentence was found!"
+                )
                 # concatenate to a single segment
                 completed_words = [concatenate_tsw(completed_words)]
- 
-                
-            return completed_words 
-                
 
-            
+            return completed_words
 
-
-
-    def chunk_completed_segment(self,ts_words) -> list:
-
-        
-
+    def chunk_completed_segment(self, ts_words) -> list:
 
         if len(ts_words) <= 1:
             logger.debug(f"--- not enough segments to chunk (<=1 words)")
@@ -434,17 +400,17 @@ class OnlineASRProcessor:
 
             ends = [w[1] for w in ts_words]
 
-            t = ts_words[-1][1] # start of the last word
-            e = ends[-2] 
+            t = ts_words[-1][1]  # start of the last word
+            e = ends[-2]
             while len(ends) > 2 and e > t:
                 ends.pop(-1)
-                e = ends[-2] 
+                e = ends[-2]
 
             if e <= t:
-                
+
                 self.chunk_at(e)
 
-                n_commited_words = len(ends)-1
+                n_commited_words = len(ends) - 1
 
                 words_to_commit = ts_words[:n_commited_words]
                 self.final_transcript.extend(words_to_commit)
@@ -452,12 +418,9 @@ class OnlineASRProcessor:
 
                 return words_to_commit
 
-
-
             else:
                 logger.debug(f"--- last segment not within commited area")
                 return []
-
 
     def chunk_at(self, time):
         """trims the hypothesis and audio buffer at "time" """
@@ -465,8 +428,7 @@ class OnlineASRProcessor:
 
         logger.debug(
             f"len of audio buffer before chunking is: {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f}s"
-            )
-
+        )
 
         self.transcript_buffer.pop_commited(time)
         cut_seconds = time - self.buffer_time_offset
@@ -475,8 +437,7 @@ class OnlineASRProcessor:
 
         logger.debug(
             f"len of audio buffer is now: {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f}s"
-            )
-                
+        )
 
     def close(self):
 
@@ -485,8 +446,6 @@ class OnlineASRProcessor:
             self.full_transcript_file.close()
             self.transcribed_sentence_file.close()
 
-
-
     def finish(self):
         """Flush the incomplete text when the whole processing ends.
         Returns: the same format as self.process_iter()
@@ -494,26 +453,21 @@ class OnlineASRProcessor:
         incomplete_words = self.transcript_buffer.complete()
         incomplete = concatenate_tsw(incomplete_words)
         if incomplete[1] is not None:
-            logger.debug(f"I finish. Commit non-commited: {incomplete[0]*1000:.0f}-{incomplete[1]*1000:.0f}: {incomplete[2]}")
+            logger.debug(
+                f"I finish. Commit non-commited: {incomplete[0]*1000:.0f}-{incomplete[1]*1000:.0f}: {incomplete[2]}"
+            )
         self.buffer_time_offset += len(self.audio_buffer) / 16000
 
-        uncommitted = concat_two_segments(concatenate_tsw(self.commited_not_final), incomplete)
+        uncommitted = concat_two_segments(
+            concatenate_tsw(self.commited_not_final), incomplete
+        )
 
         if self.output_folder is not None:
 
             self.full_transcript_file.write(f"{incomplete[2]}\n")
             self._write_transcribed_words(incomplete_words)
-        
-
-
-
-
 
         return uncommitted, (None, None, "")
-
-
-
-
 
 
 class VACOnlineASRProcessor(OnlineASRProcessor):
@@ -523,8 +477,6 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
     it runs VAD and continuously detects whether there is speech or not.
     When it detects end of speech (non-voice for 500ms), it makes OnlineASRProcessor to end the utterance immediately.
     """
-
-# TODO: VACOnlineASRProcessor does not break after chunch length is reached, this can lead to overflow!
 
     def __init__(self, online_chunk_size, *a, **kw):
         self.online_chunk_size = online_chunk_size
@@ -536,8 +488,6 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
 
         model, _ = torch.hub.load(repo_or_dir="snakers4/silero-vad", model="silero_vad")
         from src.whisper_streaming.silero_vad_iterator import FixedVADIterator
-
-
 
         self.vac = FixedVADIterator(
             model
@@ -617,12 +567,12 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
             return self.online.process_iter()
         else:
             # logger.debug("no online update, only VAD")
-            return (None, None, ""),(None, None, "")
+            return (None, None, ""), (None, None, "")
 
     def finish(self):
         self.current_online_chunk_buffer_size = 0
         self.is_currently_final = False
         return self.online.finish()
-    
+
     def close(self):
         return self.online.close()
