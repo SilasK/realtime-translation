@@ -5,7 +5,7 @@ import numpy as np
 import logging
 logger = logging.getLogger(__name__)
 import time
-
+import shutil
 
 from pathlib import Path
 
@@ -74,6 +74,7 @@ def initialize(args,log_to_console=True,
     if output_folder is not None:
 
         output_folder = Path(output_folder)
+        shutil.rmtree(output_folder, ignore_errors=True)
         output_folder.mkdir(exist_ok=True, parents=True)
 
 
