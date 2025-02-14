@@ -206,6 +206,8 @@ class OnlineASRProcessor:
             self.output_folder = None
         else:
             self.output_folder = Path(output_folder)
+            if self.output_folder.exists():
+                logger.warning(f"Output folder {output_folder} already exists. Files will be appended.")
             self.output_folder.mkdir(parents=True, exist_ok=True)
 
         self.init()
@@ -220,6 +222,14 @@ class OnlineASRProcessor:
             raise ValueError(
                 f"buffer_trimming_sec is set to {self.buffer_trimming_sec}, which is larger than the max for Whisper."
             )
+        
+        if self.output_folder is not None:
+            
+            self.transcribed_word_file= (self.output_folder / f"transcribed_words.csv").open("a")
+
+            self.full_transcript_file = (self.output_folder / f"full_transcript.md").open("a")
+
+            self.transcribed_sentence_file = (self.output_folder / f"sentence_transcript.csv").open("a")
 
     def init(self, offset=None):
         """run this when starting or restarting processing"""
@@ -234,13 +244,7 @@ class OnlineASRProcessor:
         self.final_transcript = []
         self.commited_not_final = []
 
-        if self.output_folder is not None:
-            start_time_str = datetime.now().strftime('%F_%T')
-            self.transcribed_word_file= (self.output_folder / f"transcribed_words_{start_time_str}.csv").open("a")
 
-            self.full_transcript_file = (self.output_folder / f"full_transcript_{start_time_str}.md").open("a")
-
-            self.transcribed_sentence_file = (self.output_folder / f"sentence_transcript_{start_time_str}.csv").open("a")
 
     
 
@@ -619,3 +623,6 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
         self.current_online_chunk_buffer_size = 0
         self.is_currently_final = False
         return self.online.finish()
+    
+    def close(self):
+        return self.online.close()
