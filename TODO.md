@@ -6,6 +6,9 @@
 - [ ] Sentence stop doesn't care about "
 - [ ] Break at least on comma
 
+
+- with VAC transcribed words file etc are recreated many times. 
+
 # BEtter translations
 
 - translation differ from time to time -> no exact match
@@ -14,7 +17,15 @@
 - reprocess multiple times the same incompolete text
 
 * Always keep last sentence in sentence segmentation?
-
+* Don't translate part that is already there.. 
 
 - [ ] Don't put empty or very short incomplete text
-- [ ] 
+
+
+-  [ ] Filter low entropy text:
+-  [ ] They come from finish!!
+
+"Ich habe Angst, den Widerspruch, die Jalousie, die Rivalitäten zu entdecken, der Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu"
+
+
+Pour faciliter notre exploration, je vais diviser le texte en quatre parties,! La raison pour la division un peu bizarre du texte en PowerPoint. Passons- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- Roh-bi- C'est parti !
