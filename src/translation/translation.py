@@ -3,7 +3,7 @@ import time
 import queue
 import threading
 import numpy as np
-from typing import Optional, Dict, List, Set, Callable
+from typing import Optional, Dict, List, Tuple
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -19,6 +19,8 @@ from transformers import M2M100Config, M2M100ForConditionalGeneration, M2M100Tok
 
 import torch
 import signal
+
+
 def define_torch_device():
     if torch.cuda.is_available():
         return "cuda"
@@ -26,9 +28,9 @@ def define_torch_device():
         return "mps"
     else:
         return "cpu"
-    
 
-TRANSLATION_MODEL = "facebook/m2m100_418M" #"facebook/m2m100_1.2B" 
+
+TRANSLATION_MODEL = "facebook/m2m100_418M"  # "facebook/m2m100_1.2B"
 
 
 TORCH_DEVICE = define_torch_device()
@@ -43,7 +45,7 @@ logger.info(f"Using torch device: {TORCH_DEVICE}")
 #     segment_start_time: float
 #     segment_end_time: float
 #     transcribed_time: float
-#     translated_time: float 
+#     translated_time: float
 
 
 class TextOutputStreamBase(ABC):
@@ -54,40 +56,39 @@ class TextOutputStreamBase(ABC):
     def write(self, translated_text: str, is_complete: bool):
         pass
 
-
     def stop(self):
         pass
 
 
-
-
 class ConsoleOutputStream(TextOutputStreamBase):
-    def __init__(self, language: str,console_color: int = 93):
+    def __init__(self, language: str, console_color: int = 93):
         super().__init__(language)
         self.color = console_color
 
-
     def write(self, translated_text: str, is_complete: bool):
         if is_complete:
-            logger.info(f"\033[{self.color}m[{self.language}]\033[0m: {translated_text}")
+            logger.info(
+                f"\033[{self.color}m[{self.language}]\033[0m: {translated_text}"
+            )
         else:
-            logger.info(f"\033[{self.color}m[{self.language}]\033[0m: \033[31m{translated_text}\033[0m")
+            logger.info(
+                f"\033[{self.color}m[{self.language}]\033[0m: \033[31m{translated_text}\033[0m"
+            )
+
 
 class FileOutputStream(TextOutputStreamBase):
     def __init__(self, file_path: Path | str, language: str):
 
         super().__init__(language)
         try:
-            self.outfile = open(file_path, 'w', encoding='utf-8')
+            self.outfile = open(file_path, "w", encoding="utf-8")
         except FileExistsError as e:
             logger.error(f"Cannot save translated text to {file_path}:\n{e}")
             raise
-            
 
         self.outfile.write(f"---\nlanguage: {self.language}\n---\n\n")
-        self.sep=" "
+        self.sep = " "
 
-    
     def write(self, translated_text: str, is_complete: bool):
         if is_complete:
             self.outfile.write(translated_text)
@@ -97,21 +98,23 @@ class FileOutputStream(TextOutputStreamBase):
     def stop(self):
         self.outfile.close()
 
+
 from queue import Queue
 from threading import Lock
 
+
 class WebOutputStream(TextOutputStreamBase):
     # Class-level storage for all language streams
-    _streams: Dict[str, 'WebOutputStream'] = {}
+    _streams: Dict[str, "WebOutputStream"] = {}
     _lock = Lock()
 
-    def __init__(self, language: str,sep=" "):
+    def __init__(self, language: str, sep=" "):
         super().__init__(language)
         self.queue = Queue()
         self.buffer = []
         self.sep = sep
-        self.incomplete_buffer=""
-        
+        self.incomplete_buffer = ""
+
         # Register this stream instance
         with self._lock:
             WebOutputStream._streams[language] = self
@@ -123,29 +126,32 @@ class WebOutputStream(TextOutputStreamBase):
             self.queue.put(translated_text)
             self.buffer.append(translated_text)
 
-        else:   
+        else:
             self.incomplete_buffer = translated_text
-            
 
-        logger.debug(f"WebOutputStream for language {self.language} send new content: {translated_text}")
+        logger.debug(
+            f"WebOutputStream for language {self.language} send new content: {translated_text}"
+        )
 
-
-    def get_new_content(self) -> str:
-        """Get new content since last check"""
+    def get_new_content(self) -> Tuple[str, str]:
+        """Get new content since last check and the incomplete content"""
         content = []
         while not self.queue.empty():
             content.append(self.queue.get())
-        return self.sep.join(content)
+        complete = self.sep.join(content)
+        incomplete = self.incomplete_buffer
+        return complete, incomplete
 
-    def get_full_content(self) -> str:
+    def get_full_content(self) -> Tuple[str, str]:
         """Get all content from buffer"""
-        return self.sep.join(self.buffer)
-    
+
+        return self.sep.join(self.buffer), self.incomplete_buffer
+
     def get_incomplete_content(self) -> str:
         return self.incomplete_buffer
 
     @classmethod
-    def get_stream(cls, language: str) -> Optional['WebOutputStream']:
+    def get_stream(cls, language: str) -> Optional["WebOutputStream"]:
         """Get stream for specific language"""
         return cls._streams.get(language)
 
@@ -161,84 +167,90 @@ class WebOutputStream(TextOutputStreamBase):
                 del self._streams[self.language]
         logger.debug(f"Stopped WebOutputStream for language: {self.language}")
 
-class OnlineTranslator():
-    
-    def __init__(self, model,src_lang,tgt_lang,
-                 output_file: Optional[Path | str] = None,
-                 log_to_console: bool = True,
-                 write_to_web: bool = False,
-                 **inference_ksw):
-        
+
+class OnlineTranslator:
+
+    def __init__(
+        self,
+        model,
+        src_lang,
+        tgt_lang,
+        output_file: Optional[Path | str] = None,
+        log_to_console: bool = True,
+        write_to_web: bool = False,
+        **inference_ksw,
+    ):
+
         self.model = model  # Just store the reference to the model
-    
+
         self.src_lang = src_lang
         self.tgt_lang = tgt_lang
 
         self.output_streams = []
 
         if output_file is not None:
-            self.output_streams.append(FileOutputStream(output_file,language=tgt_lang) )
+            self.output_streams.append(FileOutputStream(output_file, language=tgt_lang))
         if log_to_console:
             self.output_streams.append(ConsoleOutputStream(tgt_lang))
         if write_to_web:
             self.output_streams.append(WebOutputStream(tgt_lang))
 
-        Path("logs").mkdir(exist_ok=True)        
-        self.log_file = open(f"logs/translation_{tgt_lang}.log", 'w', encoding='utf-8')
-        
+        Path("logs").mkdir(exist_ok=True)
+        self.log_file = open(f"logs/translation_{tgt_lang}.log", "w", encoding="utf-8")
+
         assert len(self.output_streams) > 0, "No output stream defined"
 
-        self.tokenizer = M2M100Tokenizer.from_pretrained(TRANSLATION_MODEL, src_lang=src_lang,tgt_lang=tgt_lang)
+        self.tokenizer = M2M100Tokenizer.from_pretrained(
+            TRANSLATION_MODEL, src_lang=src_lang, tgt_lang=tgt_lang
+        )
 
         self.inference_kwargs = inference_ksw
-        self.inference_kwargs.setdefault("forced_bos_token_id", self.tokenizer.get_lang_id(self.tgt_lang))
-
-
+        self.inference_kwargs.setdefault(
+            "forced_bos_token_id", self.tokenizer.get_lang_id(self.tgt_lang)
+        )
 
     def tokenize_text(self, text: str) -> torch.Tensor:
         return self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
 
-
     def translate_tokenized_text(self, tokenized_text: torch.Tensor) -> str:
         try:
-            
+
             before_inference = time.time()
-            generated_tokens = self.model.generate(**tokenized_text,
-                                                    **self.inference_kwargs)
-            
-            translated_text = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)[0]
+            generated_tokens = self.model.generate(
+                **tokenized_text, **self.inference_kwargs
+            )
 
-            translation_time = time.time()-before_inference
+            translated_text = self.tokenizer.batch_decode(
+                generated_tokens, skip_special_tokens=True
+            )[0]
 
-            logger.debug(f"Translating text to {self.tgt_lang} took {translation_time:.2f}s")
+            translation_time = time.time() - before_inference
 
-            monitor.log("Translation", self.tgt_lang, "translation time", translation_time,"")
+            logger.debug(
+                f"Translating text to {self.tgt_lang} took {translation_time:.2f}s"
+            )
 
-
-
-
+            monitor.log(
+                "Translation", self.tgt_lang, "translation time", translation_time, ""
+            )
 
             return translated_text
 
-            
-
         except Exception as e:
             logger.error(f"Error translating to {self.tgt_lang}\nError:\n\n{e}")
-            return "[ Translation Error ]" 
-        
-    def translate_to_output(self, tokenized_text: torch.Tensor, is_complete: bool) -> None:
+            return "[ Translation Error ]"
+
+    def translate_to_output(
+        self, tokenized_text: torch.Tensor, is_complete: bool
+    ) -> None:
         translation = self.translate_tokenized_text(tokenized_text)
 
         prefix = "[ Complete ] " if is_complete else "[Incomplete] "
-        self.log_file.write(prefix+translation+"\n")
+        self.log_file.write(prefix + translation + "\n")
         self.log_file.flush()
-
-        
 
         for output_stream in self.output_streams:
             output_stream.write(translation, is_complete)
-
-        
 
     def stop(self):
         self.log_file.close()
@@ -246,34 +258,41 @@ class OnlineTranslator():
             output_stream.stop()
 
 
+class TranslationPipeline:
 
-
-        
-
-
-class TranslationPipeline():
-
-    def __init__(self,src_lang,target_languages: List[str],output_folder: Optional[Path | str ] = None,log_to_console: bool = True,log_to_web: bool = False):
-
+    def __init__(
+        self,
+        src_lang,
+        target_languages: List[str],
+        output_folder: Optional[Path | str] = None,
+        log_to_console: bool = True,
+        log_to_web: bool = False,
+    ):
 
         self.should_run = False
 
         signal.signal(signal.SIGINT, lambda s, f: self.stop())
 
         # Load model
-        
+
         logger.info(f"Loading model '{TRANSLATION_MODEL}'")
-        self.model = M2M100ForConditionalGeneration.from_pretrained(TRANSLATION_MODEL).to(TORCH_DEVICE)
+        self.model = M2M100ForConditionalGeneration.from_pretrained(
+            TRANSLATION_MODEL
+        ).to(TORCH_DEVICE)
 
         # Self tokenizer no target-lang
         self.src_lang = src_lang
-        self.tokenizer = M2M100Tokenizer.from_pretrained(TRANSLATION_MODEL, src_lang=self.src_lang)
+        self.tokenizer = M2M100Tokenizer.from_pretrained(
+            TRANSLATION_MODEL, src_lang=self.src_lang
+        )
 
-        self.log_file = open(f"logs/original_{src_lang}.log", 'w', encoding='utf-8')
+        self.log_file = open(f"logs/original_{src_lang}.log", "w", encoding="utf-8")
 
         self.original_output_streams = []
         if log_to_console:
-            self.original_output_streams.append(ConsoleOutputStream(src_lang,console_color=36))
+            self.original_output_streams.append(
+                ConsoleOutputStream(src_lang, console_color=36)
+            )
 
         if log_to_web:
             self.original_output_streams.append(WebOutputStream(src_lang))
@@ -282,35 +301,32 @@ class TranslationPipeline():
         if output_folder is not None:
             output_folder = Path(output_folder)
             output_folder.mkdir(parents=True, exist_ok=True)
- 
 
-            self.original_output_streams.append( FileOutputStream(output_folder / f"original_{src_lang}.md",src_lang))
-
-
-
+            self.original_output_streams.append(
+                FileOutputStream(output_folder / f"original_{src_lang}.md", src_lang)
+            )
 
         self.translators = []
         for lang in target_languages:
- 
 
             if output_folder is not None:
                 output_file = output_folder / f"translation_{lang}.md"
             else:
                 output_file = None
 
-                
-
-            self.translators.append(OnlineTranslator(self.model,
-                                                    src_lang=src_lang,
-                                                 tgt_lang=lang,
-                                                 output_file=output_file,
-                                                    log_to_console=log_to_console,
-                                                    write_to_web=log_to_web
-                                                 ))
+            self.translators.append(
+                OnlineTranslator(
+                    self.model,
+                    src_lang=src_lang,
+                    tgt_lang=lang,
+                    output_file=output_file,
+                    log_to_console=log_to_console,
+                    write_to_web=log_to_web,
+                )
+            )
 
         # Set up translation queue
         self.translation_queue = queue.Queue()
-
 
         # set up keybord interrupt handling
         # signal.signal(signal.SIGINT, lambda s, f: self.stop())
@@ -319,8 +335,6 @@ class TranslationPipeline():
 
     def __del__(self):
         self.stop()
-        
-
 
     def _translation_thread(self):
         """
@@ -329,51 +343,44 @@ class TranslationPipeline():
         """
         while self.should_run:
 
-            
-
             try:
-                text_segment,is_complete = self.translation_queue.get(timeout=1)
+                text_segment, is_complete = self.translation_queue.get(timeout=1)
             except queue.Empty:
                 logger.debug("Translation queue is empty")
                 time.sleep(0.5)
                 continue
-            
-            
+
             prefix = "[ Complete ] " if is_complete else "[Incomplete] "
             subcategory = "Complete" if is_complete else "Incomplete"
-            self.log_file.write(prefix+text_segment[2]+"\n")
+            self.log_file.write(prefix + text_segment[2] + "\n")
 
-            monitor.log_delay("Transcription", subcategory, text_segment[0], text_segment[2])
-            
-
+            monitor.log_delay(
+                "Transcription", subcategory, text_segment[0], text_segment[2]
+            )
 
             self.log_file.flush()
 
             queue_size = self.translation_queue.qsize()
             monitor.log("Translation", None, "queue size", queue_size, "")
-            
 
             if is_complete or (queue_size == 0):
 
                 tokenized_text = self._tokenize(text_segment[2])
 
                 for T in self.translators:
-                    T.translate_to_output(tokenized_text,is_complete)
+                    T.translate_to_output(tokenized_text, is_complete)
 
-                monitor.log_delay("Translation", subcategory, text_segment[0], text_segment[2])
- 
+                monitor.log_delay(
+                    "Translation", subcategory, text_segment[0], text_segment[2]
+                )
+
             else:
 
-                logger.warning("Skipping incomplete translation as there are {} more items in the queue".format(queue_size))
-     
-                
-
-
-
-
-
-
-
+                logger.warning(
+                    "Skipping incomplete translation as there are {} more items in the queue".format(
+                        queue_size
+                    )
+                )
 
     def start(self):
         # Start one thread for all translators as they are using the same model
@@ -382,7 +389,6 @@ class TranslationPipeline():
         self.translation_thread = threading.Thread(target=self._translation_thread)
         self.translation_thread.start()
 
-
     def stop(self):
 
         if not self.should_run:
@@ -390,39 +396,33 @@ class TranslationPipeline():
 
         else:
 
-            logger.info("Stopping translation pipeline. Waiting for threads to finish...")
+            logger.info(
+                "Stopping translation pipeline. Waiting for threads to finish..."
+            )
 
             for output_stream in self.original_output_streams:
                 output_stream.stop()
-            
+
             self.should_run = False
             self.translation_thread.join()
 
             for T in self.translators:
                 T.stop()
 
-            
-
             logger.info("Translation pipeline stopped")
-            
-    def _tokenize(self,text):
+
+    def _tokenize(self, text):
         return self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
 
+    def put_text(self, transcription_segment: tuple, is_complete: bool):
 
-    def put_text(self,transcription_segment: tuple, is_complete: bool):
-
-        assert transcription_segment[2]!="", "Empty text segment"
+        assert transcription_segment[2] != "", "Empty text segment"
         # Complete text first
         for output_stream in self.original_output_streams:
             output_stream.write(transcription_segment[2], is_complete=is_complete)
 
-        
-        
-        
-        
-        self.translation_queue.put((transcription_segment,is_complete))
-      
-        
+        self.translation_queue.put((transcription_segment, is_complete))
+
 
 LanguageName = {
     "af": "Afrikaans",
@@ -524,9 +524,8 @@ LanguageName = {
     "yi": "ייִדיש",
     "yo": "Yorùbá",
     "zh": "中文",
-    "zu": "isiZulu"
+    "zu": "isiZulu",
 }
-
 
 
 if __name__ == "__main__":
@@ -538,10 +537,10 @@ if __name__ == "__main__":
     Test_sentences = [
         "Bonjour à tous.",
         "Aujourd'hui, nous allons parler de la traduction en temps réel.",
-        "C'est un sujet très intéressant."
+        "C'est un sujet très intéressant.",
     ]
 
-    pipeline = TranslationPipeline("fr",["en","uk","de"])
+    pipeline = TranslationPipeline("fr", ["en", "uk", "de"])
     pipeline.start()
 
     for sentence in Test_sentences:
@@ -550,33 +549,28 @@ if __name__ == "__main__":
 
     # Send to files
 
-    temp_folder= Path("temp")
+    temp_folder = Path("temp")
 
-    pipeline = TranslationPipeline("fr",["en","uk","de"],output_folder=temp_folder)
+    pipeline = TranslationPipeline("fr", ["en", "uk", "de"], output_folder=temp_folder)
     pipeline.start()
-    
 
     for sentence in Test_sentences:
         pipeline.put_text(sentence)
     pipeline.stop()
-
-
 
     for file in temp_folder.glob("*.md"):
         print(f"## Translation to {file.stem}\n")
         print(file.read_text())
         print("\n\n")
 
-    
     # delete temp folder
     for file in temp_folder.glob("*.md"):
         file.unlink()
     temp_folder.rmdir()
 
-
     # Test with interruption
 
-    pipeline = TranslationPipeline("fr",["en","uk","de"])
+    pipeline = TranslationPipeline("fr", ["en", "uk", "de"])
     pipeline.start()
     try:
         pipeline.put_text("Une phrase avant l'interruption.")
@@ -586,9 +580,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.debug("Keyboard interruption")
         pass
-
-
-
-
 
     logger.info("End of test")

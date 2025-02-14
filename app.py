@@ -85,14 +85,16 @@ def translate(language):
 def get_translations(language):
     stream = WebOutputStream.get_stream(language)
     if not stream:
-        return jsonify({"text": ""})
+        logger.critical(f"Stream for language {language} not found.")
+        return jsonify({"text": "", "buffer": ""})
 
     # If ?full=true is provided, return the full buffer.
     if request.args.get("full", "false").lower() == "true":
-        data = stream.get_full_content()
+        data, buffer = stream.get_full_content()
+
     else:
-        data = stream.get_new_content()
-    return jsonify({"text": data})
+        data, buffer = stream.get_new_content()
+    return jsonify({"text": data, "buffer": buffer})
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 @import "https://cdn.jsdelivr.net/npm/bulma@1.0.3/css/bulma.min.css";
 
 :root {
-    --bg-color: #f8f8f8;
+    --bg-color: #f5f2c3;
     --text-color: #2a0000;
 }
 
@@ -39,6 +39,10 @@ h1 {
 }
 
 
+.buffer-text {
+  color: rgb(110, 110, 110);
+}
+
 /*main::before,*/
 main::after {
   content: "";
@@ -66,6 +70,8 @@ main::after {
 
 
 
+
+/* Main page */
 .button-container {
   display: flex;
   flex-direction: column;

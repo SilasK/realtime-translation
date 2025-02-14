@@ -90,9 +90,23 @@ function loadFullContent() {
   fetch(`/translations/${language}?full=true`)
     .then((response) => response.json())
     .then((data) => {
-      translationBox.innerHTML = data.text;
+      translationBox.innerHTML =
+        data.text + '<span class="buffer-text">' + data.buffer + "</span>";
     });
 }
+// also load full content
+function pollUpdates() {
+  fetch(`/translations/${language}?full=true`)
+    .then((response) => response.json())
+    .then((data) => {
+      // Update the transcription box with the full text and gray buffer.
+      translationBox.innerHTML =
+        data.text + '<span class="buffer-text">' + data.buffer + "</span>";
+    })
+    .catch((err) => console.log("Update error:", err));
+}
+
+/*
 
 // Poll new translation increments letter-by-letter.
 function pollUpdates() {
@@ -110,3 +124,4 @@ function pollUpdates() {
     })
     .catch((err) => console.log("Update error:", err));
 }
+*/
