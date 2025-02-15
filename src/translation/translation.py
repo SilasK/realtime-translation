@@ -354,10 +354,6 @@ class TranslationPipeline:
             subcategory = "Complete" if is_complete else "Incomplete"
             self.log_file.write(prefix + text_segment[2] + "\n")
 
-            monitor.log_delay(
-                "Transcription", subcategory, text_segment[0], text_segment[2]
-            )
-
             self.log_file.flush()
 
             queue_size = self.translation_queue.qsize()
@@ -417,6 +413,14 @@ class TranslationPipeline:
     def put_text(self, transcription_segment: tuple, is_complete: bool):
 
         assert transcription_segment[2] != "", "Empty text segment"
+        subcategory = "Complete" if is_complete else "Incomplete"
+        monitor.log_delay(
+            "Transcription",
+            subcategory,
+            transcription_segment[0],
+            transcription_segment[2],
+        )
+
         # Complete text first
         for output_stream in self.original_output_streams:
             output_stream.write(transcription_segment[2], is_complete=is_complete)

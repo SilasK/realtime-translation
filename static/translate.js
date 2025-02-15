@@ -35,7 +35,7 @@ function isScrolledToBottom() {
     translationBox.scrollTop + 1
   );
 }
-
+/*
 // Function to stream text letter-by-letter into an element.
 function streamText(text, elem, callback) {
   let index = 0;
@@ -84,6 +84,7 @@ function processUpdate(newText) {
     }
   });
 }
+*/
 
 // On load, fetch full buffer
 function loadFullContent() {
@@ -96,12 +97,33 @@ function loadFullContent() {
 }
 // also load full content
 function pollUpdates() {
-  fetch(`/translations/${language}?full=true`)
+  fetch(`/translations/${language}`)
     .then((response) => response.json())
     .then((data) => {
-      // Update the transcription box with the full text and gray buffer.
-      translationBox.innerHTML =
-        data.text + '<span class="buffer-text">' + data.buffer + "</span>";
+      const wasAtBottom = isScrolledToBottom();
+
+      // Remove the last buffer-text span if it exists.
+      const lastBufferText = translationBox.querySelector(".buffer-text");
+      if (lastBufferText) {
+        lastBufferText.remove();
+      }
+
+      // append new complete text
+      const confirmedElement = document.createElement("span");
+      confirmedElement.classList.add("new-update");
+      confirmedElement.innerHTML = " " + data.text;
+      translationBox.appendChild(confirmedElement);
+
+      // add buffer element
+      const bufferElement = document.createElement("span");
+      bufferElement.classList.add("buffer-text");
+      bufferElement.innerHTML = " " + data.buffer + "<br>".repeat(6);
+      translationBox.appendChild(bufferElement);
+
+      // scroll to bottom if at bottom
+      if (wasAtBottom) {
+        smoothScrollTo(translationBox, translationBox.scrollHeight, 800); // 800ms duration
+      }
     })
     .catch((err) => console.log("Update error:", err));
 }

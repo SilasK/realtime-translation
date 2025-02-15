@@ -82,7 +82,7 @@ def initialize(args, log_to_console=True, log_to_web=False):
         log_to_web=log_to_web,
     )
 
-    translation_pipeline.start()
+    translation_pipeline.start()  ### Don't start
 
     logger.info("Everything set up!")
 

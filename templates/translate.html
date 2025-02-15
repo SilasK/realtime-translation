@@ -94,15 +94,15 @@
   // Define constants for the script
   const language = "{{ language }}";
 
- </script>
- <script src="/static/translate.js"></script>
+</script>
+<script src="{{ url_for('static', filename='translate.js') }}"></script>
 <script>   
-// Load the full content and start polling for updates.
-loadFullContent();
+  // Load the full content and start polling for updates.
+  loadFullContent();
   // Start polling every second.
   setInterval(pollUpdates, 1000);
   
-  </script>  
+</script>  
 </body>
 
 </html>
