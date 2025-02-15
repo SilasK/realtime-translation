@@ -367,7 +367,7 @@ class TranslationPipeline:
                     T.translate_to_output(tokenized_text, is_complete)
 
                 monitor.log_delay(
-                    "Translation", subcategory, text_segment[0], text_segment[2]
+                    "Translation", subcategory, text_segment[1], text_segment[2]
                 )
 
             else:
@@ -417,7 +417,7 @@ class TranslationPipeline:
         monitor.log_delay(
             "Transcription",
             subcategory,
-            transcription_segment[0],
+            transcription_segment[1],
             transcription_segment[2],
         )
 

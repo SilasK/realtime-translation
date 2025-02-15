@@ -6,10 +6,11 @@ target_languages:
 #  - es
 
 warmup_file: "/Users/silas/GitHub/whisper_streaming_web/mydata/samples_jfk.wav"
-input_audio: "/Users/silas/GitHub/whisper_streaming_web/mydata/preche.wav"
-#input_audio: "mic"
+#input_audio: "/Users/silas/GitHub/whisper_streaming_web/mydata/preche.wav"
+input_audio: "mic"
 
 model: large-v3-turbo
+# model: medium
 
 task: transcribe
 backend: mlx-whisper
