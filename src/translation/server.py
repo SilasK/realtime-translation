@@ -39,8 +39,16 @@ def initialize(args, log_to_console=True, log_to_web=False):
 
     logger.info("Initializing translation pipeline.")
 
+    output_folder = args.output_dir
+    if output_folder is not None:
+
+        output_folder = Path(output_folder)
+        shutil.rmtree(output_folder, ignore_errors=True)
+        output_folder.mkdir(exist_ok=True, parents=True)
+
     # initialize_asr
     asr, transcriber = asr_factory(args, logfile=None)
+
     min_chunk = args.vac_chunk_size if args.vac else args.min_chunk_size
     logger.info(f"Minimum chunk size: {min_chunk}")
 
@@ -50,14 +58,17 @@ def initialize(args, log_to_console=True, log_to_web=False):
 
     # callback funcion for audio
     def put_audiochunk_in_transcriber(chunk):
+        start_time = time.time()
         transcriber.insert_audio_chunk(chunk)
-        # monitor.log(
-        #     "Transcription",
-        #     "Audio",
-        #     "audio_buffer_size",
-        #     len(transcriber.audio_buffer),
-        #     "Audio buffer size",
-        # )
+        time_taken = time.time() - start_time
+
+        monitor.log(
+            "General",
+            "Audio",
+            "Time taken to insert audio",
+            time_taken,
+            "With VAC" if args.vac else "No VAC",
+        )
 
     audio_source = AudioInput(
         callback=put_audiochunk_in_transcriber,
@@ -67,12 +78,6 @@ def initialize(args, log_to_console=True, log_to_web=False):
     )
 
     # initialize_translation_pipeline
-    output_folder = args.output_dir
-    if output_folder is not None:
-
-        output_folder = Path(output_folder)
-        shutil.rmtree(output_folder, ignore_errors=True)
-        output_folder.mkdir(exist_ok=True, parents=True)
 
     translation_pipeline = TranslationPipeline(
         args.lan,

@@ -346,7 +346,7 @@ class TranslationPipeline:
             try:
                 text_segment, is_complete = self.translation_queue.get(timeout=1)
             except queue.Empty:
-                logger.debug("Translation queue is empty")
+                logger.debug("Translation queue is empty. I wait.")
                 time.sleep(0.5)
                 continue
 

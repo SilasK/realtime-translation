@@ -39,9 +39,6 @@ add_other_loggers(
     level="DEBUG",
 )
 
-monitor = Monitor()
-monitor.logger.handlers.append(InterceptHandler())
-
 
 signal.signal(signal.SIGINT, server.signal_handler)
 

@@ -31,14 +31,14 @@ class Monitor:
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
+        self.data_file = Path("logs/monitor_data.csv")
+        self.data_file.unlink(missing_ok=True)
+
         self.start_time = np.nan
 
         self.data_list = []
 
-        self.data = pd.DataFrame(
-            columns=["category", "subcategory", "number_name", "number", "message"],
-            index=pd.Index([], name="timestamp"),
-        )
+        self.data = None
         self.should_monitor = False
 
     def start(self, start_time=None):
@@ -95,12 +95,19 @@ class Monitor:
 
             self.data_list = []
 
-            self.data = pd.concat([self.data, new_data])
+            if self.data is None:
+                self.data = new_data
+                new_data.to_csv(self.data_file, mode="w", header=True)
+            else:
+                self.data = pd.concat([self.data, new_data])
+                new_data.to_csv(self.data_file, mode="a", header=False)
 
         return self.data
 
     def _analysis_thread(self):
+
         self.logger.debug("Monitor analysis thread started.")
+        time.sleep(5)
         while self.should_monitor:
             time.sleep(5)
             # Perform analysis on the data collected.
