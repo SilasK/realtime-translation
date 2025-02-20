@@ -196,6 +196,7 @@ class OnlineASRProcessor:
         self.asr = asr
         self.tokenize = tokenize_method
         self.logfile = logfile
+
         if output_folder is None:
             self.output_folder = None
         else:
@@ -272,7 +273,7 @@ class OnlineASRProcessor:
 
         self.len_audio_buffer_last_transcribed = len_audio_buffer_now
 
-        logger.debug(
+        logger.info(
             f"transcribing {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f} seconds from {self.buffer_time_offset:2.2f}"
         )
 
@@ -324,7 +325,29 @@ class OnlineASRProcessor:
                 ]  # keep only last 200 characters
 
         commited_but_not_final = concatenate_tsw(self.commited_not_final)
-        incomplete = concatenate_tsw(self.transcript_buffer.complete())
+
+        # incomplete words
+        incomplete_words = self.transcript_buffer.complete()
+
+        if len(incomplete_words) <= 3:
+            incomplete_words = []
+        else:
+
+            from collections import defaultdict
+
+            word_freq = defaultdict(int)
+
+            for w in incomplete_words:
+                word_freq[w[2]] += 1
+
+            max_freq = max(word_freq.values())
+            if max_freq > 4:
+                logger.warning(
+                    f"Max frequency of a word in incomplete words is {max_freq}. Ignore incomplete words: {concatenate_tsw(incomplete_words)[2]}"
+                )
+                incomplete_words = []
+
+        incomplete = concatenate_tsw(incomplete_words)
 
         logger.debug(
             f"\n    COMPLETE NOW: {completed[2]}\n"
@@ -453,10 +476,10 @@ class OnlineASRProcessor:
         incomplete_words = self.transcript_buffer.complete()
         incomplete = concatenate_tsw(incomplete_words)
         if incomplete[1] is not None:
-            logger.debug(
-                f"I finish. Commit non-commited: {incomplete[0]*1000:.0f}-{incomplete[1]*1000:.0f}: {incomplete[2]}"
+            logger.warning(
+                f"I finish. Commit non-commited: {incomplete[0]:.3f}-{incomplete[1]:.3f}: {incomplete[2]}"
             )
-        self.buffer_time_offset += len(self.audio_buffer) / 16000
+        self.buffer_time_offset += len(self.audio_buffer) / self.SAMPLING_RATE
 
         uncommitted = concat_two_segments(
             concatenate_tsw(self.commited_not_final), incomplete
@@ -470,20 +493,22 @@ class OnlineASRProcessor:
         return uncommitted, (None, None, "")
 
 
-class VACOnlineASRProcessor(OnlineASRProcessor):
-    """Wraps OnlineASRProcessor with VAC (Voice Activity Controller).
+class VACOnlineASRProcessor:
+    """
+    Wraps an OnlineASRProcessor with a Voice Activity Controller (VAC).
 
-    It works the same way as OnlineASRProcessor: it receives chunks of audio (e.g. 0.04 seconds),
-    it runs VAD and continuously detects whether there is speech or not.
-    When it detects end of speech (non-voice for 500ms), it makes OnlineASRProcessor to end the utterance immediately.
+    It receives small chunks of audio, applies VAD (e.g. with Silero),
+    and when the system detects a pause in speech (or end of an utterance)
+    it finalizes the utterance immediately.
     """
 
-    def __init__(self, online_chunk_size, *a, **kw):
+    SAMPLING_RATE = 16000
+
+    def __init__(self, online_chunk_size: float, *args, **kwargs):
         self.online_chunk_size = online_chunk_size
+        self.online = OnlineASRProcessor(*args, **kwargs)
 
-        self.online = OnlineASRProcessor(*a, **kw)
-
-        # VAC:
+        # Load a VAD model (e.g. Silero VAD)
         import torch
 
         model, _ = torch.hub.load(repo_or_dir="snakers4/silero-vad", model="silero_vad")
@@ -500,10 +525,8 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
         self.online.init()
         self.vac.reset_states()
         self.current_online_chunk_buffer_size = 0
-
         self.is_currently_final = False
-
-        self.status = None  # or "voice" or "nonvoice"
+        self.status: Optional[str] = None  # "voice" or "nonvoice"
         self.audio_buffer = np.array([], dtype=np.float32)
         self.buffer_offset = 0  # in frames
 
@@ -511,11 +534,18 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
         self.buffer_offset += len(self.audio_buffer)
         self.audio_buffer = np.array([], dtype=np.float32)
 
-    def insert_audio_chunk(self, audio):
+    def insert_audio_chunk(self, audio: np.ndarray):
+        """
+        Process an incoming small audio chunk:
+          - run VAD on the chunk,
+          - decide whether to send the audio to the online ASR processor immediately,
+          - and/or to mark the current utterance as finished.
+        """
         res = self.vac(audio)
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
         if res is not None:
+            # VAD returned a result; adjust the frame number
             frame = list(res.values())[0] - self.buffer_offset
             if "start" in res and "end" not in res:
                 self.status = "voice"
@@ -549,14 +579,18 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
                 self.current_online_chunk_buffer_size += len(self.audio_buffer)
                 self.clear_buffer()
             else:
-                # We keep 1 second because VAD may later find start of voice in it.
-                # But we trim it to prevent OOM.
+                # Keep 1 second worth of audio in case VAD later detects voice,
+                # but trim to avoid unbounded memory usage.
                 self.buffer_offset += max(
                     0, len(self.audio_buffer) - self.SAMPLING_RATE
                 )
                 self.audio_buffer = self.audio_buffer[-self.SAMPLING_RATE :]
 
     def process_iter(self):
+        """
+        Depending on the VAD status and the amount of accumulated audio,
+        process the current audio chunk.
+        """
         if self.is_currently_final:
             return self.finish()
         elif (
@@ -570,9 +604,8 @@ class VACOnlineASRProcessor(OnlineASRProcessor):
             return (None, None, ""), (None, None, "")
 
     def finish(self):
+        """Finish processing by flushing any remaining text."""
+        result = self.online.finish()
         self.current_online_chunk_buffer_size = 0
         self.is_currently_final = False
-        return self.online.finish()
-
-    def close(self):
-        return self.online.close()
+        return result
