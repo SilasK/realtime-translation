@@ -141,13 +141,14 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
                     translation_pipeline.put_text(incomplete, is_complete=False)
 
             except Exception as e:
-                logger.error(f"Assertion error: {e}")
+                logger.error(f"Error: {e}")
                 raise e
 
             # monitor.log("General", None, "processed audio", time.time() - start, "Time since start")
 
     except Exception as e:
         logger.error(f"Error during processing: {e}")
+        raise e
     finally:
         audio_source.stop()
         transcriber.close()

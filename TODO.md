@@ -24,6 +24,7 @@
 
 -  [ ] Filter low entropy text:
 -  [ ] They come from finish!!
+-  [ ] VAD could re-init before finished!!
 
 "Ich habe Angst, den Widerspruch, die Jalousie, die Rivalitäten zu entdecken, der Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu Cu"
 
