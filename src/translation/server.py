@@ -9,6 +9,7 @@ import time
 import shutil
 
 from pathlib import Path
+import queue
 
 
 from ..whisper.audio import AudioInput
@@ -70,8 +71,10 @@ def initialize(args, log_to_console=True, log_to_web=False):
             "With VAC" if args.vac else "No VAC",
         )
 
+    audio_input_queue = queue.Queue()
+
     audio_source = AudioInput(
-        callback=put_audiochunk_in_transcriber,
+        callback=audio_input_queue.put,
         source=args.input_audio,
         sample_rate=SAMPLING_RATE,
         chunk_size=min_chunk,
@@ -87,11 +90,11 @@ def initialize(args, log_to_console=True, log_to_web=False):
         log_to_web=log_to_web,
     )
 
-    translation_pipeline.start()  ### Don't start
+    # translation_pipeline.start()
 
     logger.info("Everything set up!")
 
-    return audio_source, transcriber, translation_pipeline, min_chunk
+    return audio_source, transcriber, translation_pipeline, min_chunk, audio_input_queue
 
 
 ### Main loop
@@ -106,7 +109,9 @@ def signal_handler(signum, frame):
     translation_loop_running = False
 
 
-def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
+def main_loop(
+    args, audio_source, transcriber, translation_pipeline, min_chunk, audio_input_queue
+):
 
     try:
 
@@ -121,6 +126,30 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
             try:
 
                 # monitor.log("General","Transcription","Time since last transcribed",time.time()- last_transcribed,"This is for debug")
+
+                # insert audio
+
+                audio_queue_size = audio_input_queue.qsize()
+                monitor.log(
+                    "General",
+                    "Audio",
+                    "Audio queue size",
+                    audio_queue_size,
+                    "",
+                )
+                logger.debug(f"Audio queue size: {audio_queue_size}")
+
+                if audio_queue_size == 0:
+                    time.sleep(0.9 * min_chunk)
+                    continue
+
+                # get all audio chunks and concatenate them
+                audio_chunks = []
+                while not audio_input_queue.empty():
+                    audio_chunks.append(audio_input_queue.get())
+
+                audio = np.concatenate(audio_chunks)
+                transcriber.insert_audio_chunk(audio)
 
                 o, incomplete = transcriber.process_iter()
                 last_transcribed = time.time()
