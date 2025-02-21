@@ -135,10 +135,10 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
 
                     translation_pipeline.put_text(o, is_complete=True)
 
-                if incomplete[0] is not None:
+                # if incomplete[0] is not None:
 
-                    logger.debug("Incomplete: " + incomplete[2])
-                    translation_pipeline.put_text(incomplete, is_complete=False)
+                #     logger.debug("Incomplete: " + incomplete[2])
+                #     translation_pipeline.put_text(incomplete, is_complete=False)
 
             except Exception as e:
                 logger.error(f"Error: {e}")
