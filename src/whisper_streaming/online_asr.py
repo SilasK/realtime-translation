@@ -3,6 +3,9 @@ import numpy as np
 import logging
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
+import sounddevice as sd
+
 
 logger = logging.getLogger(__name__)
 
@@ -260,21 +263,17 @@ class OnlineASRProcessor:
     def insert_audio_chunk(self, audio):
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
-    def process_iter(self):
-        """Runs on the current audio buffer.
-        Returns: a tuple (beg_timestamp, end_timestamp, "text"), or (None, None, "").
-        The non-emty text is confirmed (committed) partial transcript.
-        """
+    def transcribe_audio_buffer(self):
 
         len_audio_buffer_now = len(self.audio_buffer)
         if len_audio_buffer_now == self.len_audio_buffer_last_transcribed:
-            # logger.debug("No new audio data.")
-            return (None, None, ""), (None, None, "")
+            # No new audio data.
+            return []
 
         self.len_audio_buffer_last_transcribed = len_audio_buffer_now
 
         logger.info(
-            f"transcribing {len(self.audio_buffer)/self.SAMPLING_RATE:2.2f} seconds from {self.buffer_time_offset:2.2f}"
+            f"transcribing {len(self.audio_buffer)/self.SAMPLING_RATE:2.3f} seconds from {self.buffer_time_offset:2.3f}"
         )
 
         ## Transcribe and format the result to [(beg,end,"word1"), ...]
@@ -286,8 +285,27 @@ class OnlineASRProcessor:
         res = self.asr.transcribe(self.audio_buffer, init_prompt=self.promt)
         tsw = self.asr.ts_words(res)
 
+        # shift
+        tsw = [
+            (t[0] + self.buffer_time_offset, t[1] + self.buffer_time_offset, t[2])
+            for t in tsw
+        ]
+
+        return tsw
+
+    def process_iter(self):
+        """Runs on the current audio buffer.
+        Returns: a tuple (beg_timestamp, end_timestamp, "text"), or (None, None, "").
+        The non-emty text is confirmed (committed) partial transcript.
+        """
+
+        tsw = self.transcribe_audio_buffer()
+
+        if len(tsw) == 0:
+            return (None, None, ""), (None, None, "")
+
         # insert into HypothesisBuffer, and get back the commited words
-        self.transcript_buffer.insert(tsw, self.buffer_time_offset)
+        self.transcript_buffer.insert(tsw, 0)
         commited_tsw = self.transcript_buffer.flush()
 
         completed = (None, None, "")
@@ -470,27 +488,30 @@ class OnlineASRProcessor:
             self.transcribed_sentence_file.close()
 
     def finish(self):
-        """Flush the incomplete text when the whole processing ends.
-        Returns: the same format as self.process_iter()
         """
-        incomplete_words = self.transcript_buffer.complete()
-        incomplete = concatenate_tsw(incomplete_words)
-        if incomplete[1] is not None:
-            logger.warning(
-                f"I finish. Commit non-commited: {incomplete[0]:.3f}-{incomplete[1]:.3f}: {incomplete[2]}"
-            )
-        self.buffer_time_offset += len(self.audio_buffer) / self.SAMPLING_RATE
+        Ignore commited and transcribing audio buffer and return.
+        This is executed when we know the audio buffer contains the last words of the utterance.
+        """
 
-        uncommitted = concat_two_segments(
-            concatenate_tsw(self.commited_not_final), incomplete
-        )
+        tsw = self.transcribe_audio_buffer()
+
+        finish_words = concatenate_tsw(tsw)
+
+        if finish_words[0] is not None:
+            logger.warning(
+                f"I finish. transcribed words: {finish_words[0]:.3f}-{finish_words[1]:.3f}: {finish_words[2]}"
+            )
+
+        # Reset the buffers
+        self.commited_not_final = []
+        self.audio_buffer = np.array([], dtype=np.float32)
 
         if self.output_folder is not None:
 
-            self.full_transcript_file.write(f"{incomplete[2]}\n")
-            self._write_transcribed_words(incomplete_words)
+            self.full_transcript_file.write(f"{finish_words[2]}\n")
+            self._write_transcribed_words(tsw)
 
-        return uncommitted, (None, None, "")
+        return finish_words, (None, None, "")
 
 
 class VACOnlineASRProcessor:
@@ -541,50 +562,47 @@ class VACOnlineASRProcessor:
           - decide whether to send the audio to the online ASR processor immediately,
           - and/or to mark the current utterance as finished.
         """
+
         res = self.vac(audio)
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
-        if res is not None:
-            # VAD returned a result; adjust the frame number
-            frame = list(res.values())[0] - self.buffer_offset
-            if "start" in res and "end" not in res:
-                self.status = "voice"
-                send_audio = self.audio_buffer[frame:]
-                self.online.init(
-                    offset=(frame + self.buffer_offset) / self.SAMPLING_RATE
-                )
-                self.online.insert_audio_chunk(send_audio)
-                self.current_online_chunk_buffer_size += len(send_audio)
-                self.clear_buffer()
-            elif "end" in res and "start" not in res:
-                self.status = "nonvoice"
-                send_audio = self.audio_buffer[:frame]
-                self.online.insert_audio_chunk(send_audio)
-                self.current_online_chunk_buffer_size += len(send_audio)
-                self.is_currently_final = True
-                self.clear_buffer()
-            else:
-                beg = res["start"] - self.buffer_offset
-                end = res["end"] - self.buffer_offset
-                self.status = "nonvoice"
-                send_audio = self.audio_buffer[beg:end]
-                self.online.init(offset=(beg + self.buffer_offset) / self.SAMPLING_RATE)
-                self.online.insert_audio_chunk(send_audio)
-                self.current_online_chunk_buffer_size += len(send_audio)
-                self.is_currently_final = True
-                self.clear_buffer()
-        else:
+        if res is None:
+            # VAD returned no  result;
             if self.status == "voice":
                 self.online.insert_audio_chunk(self.audio_buffer)
                 self.current_online_chunk_buffer_size += len(self.audio_buffer)
-                self.clear_buffer()
-            else:
-                # Keep 1 second worth of audio in case VAD later detects voice,
-                # but trim to avoid unbounded memory usage.
-                self.buffer_offset += max(
-                    0, len(self.audio_buffer) - self.SAMPLING_RATE
-                )
-                self.audio_buffer = self.audio_buffer[-self.SAMPLING_RATE :]
+        else:
+            assert (
+                len(res) == 1
+            ), "I expect only one result from VAD, but maybe I am wrong"
+
+            # Calculate frame nr number from time returned by VAC.
+            vac_key, vac_time = list(res.items())[0]
+            frame = vac_time - self.buffer_offset + len(audio)
+
+            logger.debug(f"VAC detected {vac_key} at {vac_time / self.SAMPLING_RATE}s ")
+
+            if vac_key == "start":
+
+                self.status = "voice"
+                send_audio = self.audio_buffer[frame:]
+                if self.online.audio_buffer.shape[0] > 0:
+                    logger.critical(
+                        "Audio buffer is not empty and I am starting a new utterance"
+                    )
+                self.online.init(offset=vac_time / self.SAMPLING_RATE)
+
+            elif vac_key == "end":
+
+                self.status = "nonvoice"
+                send_audio = self.audio_buffer[:frame]
+                self.is_currently_final = True
+
+            self.online.insert_audio_chunk(send_audio)
+            self.current_online_chunk_buffer_size += len(send_audio)
+
+        # Clear the audio buffer at the end
+        self.clear_buffer()
 
     def process_iter(self):
         """
@@ -609,3 +627,6 @@ class VACOnlineASRProcessor:
         self.current_online_chunk_buffer_size = 0
         self.is_currently_final = False
         return result
+
+    def close(self):
+        return self.online.close()
