@@ -108,6 +108,14 @@ function pollUpdates() {
         lastBufferText.remove();
       }
 
+      // Remove the new-update class from any previous update elements as soon as a new update arrives.
+      if (data.text.length > 0) {
+        const previousUpdates = translationBox.querySelectorAll(".new-update");
+        previousUpdates.forEach((elem) => {
+          elem.classList.remove("new-update");
+        });
+      }
+
       // append new complete text
       const confirmedElement = document.createElement("span");
       confirmedElement.classList.add("new-update");

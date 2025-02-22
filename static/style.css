@@ -38,6 +38,12 @@ h1 {
     text-align: left;
 }
 
+.new-update {
+  text-shadow: 0 0 5px #ffdc18c7;
+
+
+}
+
 
 .buffer-text {
   color: rgb(110, 110, 110);
