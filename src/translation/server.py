@@ -106,14 +106,11 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
         monitor.start(start)
         audio_source.start()
 
-        last_transcribed = np.nan
+        last_sentence = np.nan
         while translation_loop_running:
             try:
 
-                # monitor.log("General","Transcription","Time since last transcribed",time.time()- last_transcribed,"This is for debug")
-
                 o, incomplete = transcriber.process_iter()
-                last_transcribed = time.time()
 
                 if o[0] is None and incomplete[0] is None:
                     if not args.vac:
@@ -123,7 +120,15 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
 
                 if o[0] is not None:
 
+                    time_since_last_sentence = o[0] - last_sentence
+                    if time_since_last_sentence > 1.4:
+                        logger.info(
+                            f"Time since last sentence: {time_since_last_sentence}s. Add paragraph."
+                        )
+                        o = (o[0], o[1], "<br><br>" + o[2])
+
                     translation_pipeline.put_text(o, is_complete=True)
+                    last_sentence = o[1]
 
                 # if incomplete[0] is not None:
 
