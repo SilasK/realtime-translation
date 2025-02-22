@@ -99,8 +99,9 @@
 <script>   
   // Load the full content and start polling for updates.
   loadFullContent();
-  // Start polling every second.
-  setInterval(pollUpdates, 1000);
+  // HACK: Each second we update the full content. This is a temporary solution until we have a better way to update the content.
+  // 
+  setInterval(loadFullContent, 500);
   
 </script>  
 </body>
