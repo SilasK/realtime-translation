@@ -58,17 +58,7 @@ def initialize(args, log_to_console=True, log_to_web=False):
 
     # callback funcion for audio
     def put_audiochunk_in_transcriber(chunk):
-        start_time = time.time()
         transcriber.insert_audio_chunk(chunk)
-        time_taken = time.time() - start_time
-
-        monitor.log(
-            "General",
-            "Audio",
-            "Time taken to insert audio",
-            time_taken,
-            "With VAC" if args.vac else "No VAC",
-        )
 
     audio_source = AudioInput(
         callback=put_audiochunk_in_transcriber,
@@ -111,10 +101,10 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
     try:
 
         logger.info("Ready to process audio.")
-        audio_source.start()
 
         start = time.time()
         monitor.start(start)
+        audio_source.start()
 
         last_transcribed = np.nan
         while translation_loop_running:
@@ -127,7 +117,7 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
 
                 if o[0] is None and incomplete[0] is None:
                     if not args.vac:
-                        logger.warning("No output from transcriber.")
+                        logger.debug("No output from transcriber.")
 
                     time.sleep(0.9 * min_chunk)
 

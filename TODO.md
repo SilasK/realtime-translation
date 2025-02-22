@@ -1,3 +1,11 @@
+# For running
+caffeinate -t 7200 
+mic input
+
+ngrok http 5000 
+
+
+# TODO
 - [ ] Promt 200 char but only full words?
 - [ ] Sentence that are not correctly endend and transcribed by a final dot.
 - [ ] Ellipses, are some parts missing?
@@ -7,7 +15,13 @@
 - [ ] Break at least on comma
 
 
-- with VAC transcribed words file etc are recreated many times. 
+
+# Better VAC
+- [x] + chunklenght to not have neg
+- [x] Finalize should run a final translate.
+- [ ] re init can be done many times !
+- [ ] re init clears promt. But end of VAC is not always end of sentence.
+
 
 # BEtter translations
 

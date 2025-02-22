@@ -85,6 +85,27 @@ class HypothesisBuffer:
         return self.buffer
 
 
+def check_words(words):
+
+    if len(words) > 5:
+
+        from collections import defaultdict
+
+        word_freq = defaultdict(int)
+
+        for w in words:
+            word_freq[w[2]] += 1
+
+        max_freq = max(word_freq.values()) / len(words)
+        if max_freq > 0.2:
+            logger.error(
+                f"Max frequency of a word is {max_freq}. Ignore all words: {concatenate_tsw(words)[2]}"
+            )
+            return []
+
+    return words
+
+
 def concatenate_tsw(
     tsw,
     sep=None,
@@ -234,7 +255,7 @@ class OnlineASRProcessor:
             ).open("a")
 
             self.transcribed_sentence_file = (
-                self.output_folder / f"sentence_transcript.csv"
+                self.output_folder / f"sentence_transcript.tsv"
             ).open("a")
 
     def init(self, offset=None):
@@ -301,6 +322,8 @@ class OnlineASRProcessor:
 
         tsw = self.transcribe_audio_buffer()
 
+        tsw = check_words(tsw)
+
         if len(tsw) == 0:
             return (None, None, ""), (None, None, "")
 
@@ -331,10 +354,11 @@ class OnlineASRProcessor:
 
                 if self.output_folder is not None:
                     now = datetime.now().strftime("%T.%f")[:-3]
-                    for s in completed_words:
-                        self.transcribed_sentence_file.write(
-                            f'{now},{s[0]:.3f},{s[1]:.3f},"{s[2]}"\n'
-                        )
+                    for sentence in completed_words:
+                        if sentence[0] is not None:
+                            self.transcribed_sentence_file.write(
+                                f'{now}\t{sentence[0]:.3f}\t{sentence[1]:.3f}\t"{sentence[2]}"\n'
+                            )
                     self.transcribed_sentence_file.flush()
 
                 completed = concatenate_tsw(completed_words)
@@ -346,24 +370,6 @@ class OnlineASRProcessor:
 
         # incomplete words
         incomplete_words = self.transcript_buffer.complete()
-
-        if len(incomplete_words) <= 3:
-            incomplete_words = []
-        else:
-
-            from collections import defaultdict
-
-            word_freq = defaultdict(int)
-
-            for w in incomplete_words:
-                word_freq[w[2]] += 1
-
-            max_freq = max(word_freq.values())
-            if max_freq > 4:
-                logger.warning(
-                    f"Max frequency of a word in incomplete words is {max_freq}. Ignore incomplete words: {concatenate_tsw(incomplete_words)[2]}"
-                )
-                incomplete_words = []
 
         incomplete = concatenate_tsw(incomplete_words)
 
