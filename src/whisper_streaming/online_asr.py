@@ -97,7 +97,7 @@ def check_words(words):
             word_freq[w[2]] += 1
 
         max_freq = max(word_freq.values()) / len(words)
-        if max_freq > 0.2:
+        if max_freq > 0.5:
             logger.error(
                 f"Max frequency of a word is {max_freq}. Ignore all words: {concatenate_tsw(words)[2]}"
             )
