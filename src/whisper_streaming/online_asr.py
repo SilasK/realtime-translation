@@ -329,7 +329,7 @@ class OnlineASRProcessor:
         else:
             start = None
             end = None
-        return Transcript(start, end, text)
+        return Transcript(start, end, text)    
 
 
 class VACOnlineASRProcessor:
@@ -378,43 +378,45 @@ class VACOnlineASRProcessor:
         res = self.vac(audio)
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
-        if res is not None:
-            # VAD returned a result; adjust the frame number
-            frame = list(res.values())[0] - self.buffer_offset
-            if "start" in res and "end" not in res:
-                self.status = "voice"
-                send_audio = self.audio_buffer[frame:]
-                self.online.init(offset=(frame + self.buffer_offset) / self.SAMPLING_RATE)
-                self.online.insert_audio_chunk(send_audio)
-                self.current_online_chunk_buffer_size += len(send_audio)
-                self.clear_buffer()
-            elif "end" in res and "start" not in res:
-                self.status = "nonvoice"
-                send_audio = self.audio_buffer[:frame]
-                self.online.insert_audio_chunk(send_audio)
-                self.current_online_chunk_buffer_size += len(send_audio)
-                self.is_currently_final = True
-                self.clear_buffer()
-            else:
-                beg = res["start"] - self.buffer_offset
-                end = res["end"] - self.buffer_offset
-                self.status = "nonvoice"
-                send_audio = self.audio_buffer[beg:end]
-                self.online.init(offset=(beg + self.buffer_offset) / self.SAMPLING_RATE)
-                self.online.insert_audio_chunk(send_audio)
-                self.current_online_chunk_buffer_size += len(send_audio)
-                self.is_currently_final = True
-                self.clear_buffer()
-        else:
+        if res is None:
+            # VAD returned no  result;
             if self.status == "voice":
                 self.online.insert_audio_chunk(self.audio_buffer)
                 self.current_online_chunk_buffer_size += len(self.audio_buffer)
-                self.clear_buffer()
-            else:
-                # Keep 1 second worth of audio in case VAD later detects voice,
-                # but trim to avoid unbounded memory usage.
-                self.buffer_offset += max(0, len(self.audio_buffer) - self.SAMPLING_RATE)
-                self.audio_buffer = self.audio_buffer[-self.SAMPLING_RATE:]
+        else:
+            
+            if len(res) > 1:
+                raise NotImplementedError("I don't expect start and end in the same chunk")
+
+
+            # Calculate frame nr number from time returned by VAC.
+            # Important here is to add the chunk length
+            vac_key, vac_time = list(res.items())[0]
+            frame = vac_time - self.buffer_offset + len(audio)
+
+            logger.debug(f"VAC detected {vac_key} at {vac_time / self.SAMPLING_RATE}s ")
+
+            if vac_key == "start":
+
+                self.status = "voice"
+                send_audio = self.audio_buffer[frame:]
+                if self.online.audio_buffer.shape[0] > 0:
+                    logger.critical(
+                        "Audio buffer is not empty and I am starting a new utterance"
+                    )
+                self.online.init(offset=vac_time / self.SAMPLING_RATE)
+
+            elif vac_key == "end":
+
+                self.status = "nonvoice"
+                send_audio = self.audio_buffer[:frame]
+                self.is_currently_final = True
+
+            self.online.insert_audio_chunk(send_audio)
+            self.current_online_chunk_buffer_size += len(send_audio)
+
+        # Clear the audio buffer at the end for all cases
+        self.clear_buffer()
 
     def process_iter(self) -> Transcript:
         """
@@ -423,11 +425,14 @@ class VACOnlineASRProcessor:
         """
         if self.is_currently_final:
             return self.finish()
-        elif self.current_online_chunk_buffer_size > self.SAMPLING_RATE * self.online_chunk_size:
+        elif (
+            self.current_online_chunk_buffer_size
+            > self.SAMPLING_RATE * self.online_chunk_size
+        ):
             self.current_online_chunk_buffer_size = 0
             return self.online.process_iter()
         else:
-            logger.debug("No online update, only VAD")
+            # logger.debug("no online update, only VAD")
             return Transcript(None, None, "")
 
     def finish(self) -> Transcript:
@@ -436,7 +441,6 @@ class VACOnlineASRProcessor:
         self.current_online_chunk_buffer_size = 0
         self.is_currently_final = False
         return result
-    
     def get_buffer(self):
         """
         Get the unvalidated buffer in string format.
