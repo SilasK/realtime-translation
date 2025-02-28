@@ -4,8 +4,11 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
-import sounddevice as sd
+import queue
+import time
 
+# from ..utils.monitor import Monitor
+# monitor = Monitor()
 
 logger = logging.getLogger(__name__)
 
@@ -299,10 +302,6 @@ class OnlineASRProcessor:
 
         ## Transcribe and format the result to [(beg,end,"word1"), ...]
 
-        # if len(self.promt) > 50:
-        #     logger.debug(f"Transcribing with prompt: {self.promt[:25]}...{self.promt[-25:]}")
-        # else:
-        #     logger.debug(f"Transcribing with prompt: {self.promt}")
         res = self.asr.transcribe(self.audio_buffer, init_prompt=self.promt)
         tsw = self.asr.ts_words(res)
 
@@ -520,50 +519,102 @@ class OnlineASRProcessor:
         return finish_words, (None, None, "")
 
 
+class TranscriptionJob(OnlineASRProcessor):
+    def __init__(self, *args, offset=0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.should_finish = False
+        super().init(offset=offset)
+
+    def process_iter(self):
+        if self.should_finish:
+            raise ValueError("This job should finish.")
+        else:
+            return super().process_iter()
+
+
 class VACOnlineASRProcessor:
     """
     Wraps an OnlineASRProcessor with a Voice Activity Controller (VAC).
-    
+
     It receives small chunks of audio, applies VAD (e.g. with Silero),
     and when the system detects a pause in speech (or end of an utterance)
     it finalizes the utterance immediately.
     """
+
     SAMPLING_RATE = 16000
 
     def __init__(self, online_chunk_size: float, *args, **kwargs):
         self.online_chunk_size = online_chunk_size
-        self.online = OnlineASRProcessor(*args, **kwargs)
+
+        self._online_args = args
+        self._online_kwargs = kwargs
+
+        # self.online = OnlineASRProcessor(*args, **kwargs)
 
         # Load a VAD model (e.g. Silero VAD)
         import torch
+
         model, _ = torch.hub.load(repo_or_dir="snakers4/silero-vad", model="silero_vad")
         from src.whisper_streaming.silero_vad_iterator import FixedVADIterator
-        # we use the default options there: 500ms silence, 100ms padding, etc.
-        self.vac = FixedVADIterator(model)  
 
-        self.logfile = self.online.logfile
+        # we use the default options there: 500ms silence, 100ms padding, etc.
+        self.vac = FixedVADIterator(model)
+
+        # self.logfile = self.online.logfile
         self.init()
 
     def init(self):
-        self.online.init()
+        # self.online.init()
         self.vac.reset_states()
-        self.current_online_chunk_buffer_size = 0
-        self.is_currently_final = False
         self.status: Optional[str] = None  # "voice" or "nonvoice"
         self.audio_buffer = np.array([], dtype=np.float32)
         self.buffer_offset = 0  # in frames
+        self.audio_chunk_queue = queue.Queue()
+        self.TranscriptionJobs = []
+        # self._add_new_transcription_job()
+
+    def _add_new_transcription_job(self, **kwargs):
+        new_online = TranscriptionJob(
+            *self._online_args, **self._online_kwargs, **kwargs
+        )
+        self.TranscriptionJobs.append(new_online)
+
+        if len(self.TranscriptionJobs) > 0:
+            logger.debug(
+                f"Added new transcription job. Total number of jobs: {len(self.TranscriptionJobs)}"
+            )
 
     def clear_buffer(self):
         self.buffer_offset += len(self.audio_buffer)
         self.audio_buffer = np.array([], dtype=np.float32)
 
     def insert_audio_chunk(self, audio: np.ndarray):
+        self.audio_chunk_queue.put(audio)
+
+    def _send_audio_chunk_for_translation(self, audio: np.ndarray):
+        try:
+            self.TranscriptionJobs[-1].insert_audio_chunk(audio)
+        except IndexError as e:
+            raise Exception("No transcription job to send audio to.") from e
+
+    def run_vac(self):
         """
         Process an incoming small audio chunk:
           - run VAD on the chunk,
           - decide whether to send the audio to the online ASR processor immediately,
           - and/or to mark the current utterance as finished.
         """
+
+        # logger.debug(f"{self.audio_chunk_queue.qsize()} chunks in the queue")
+        # monitor.log("VAC", None, "Queue_size", self.audio_chunk_queue.qsize(), "")
+
+        try:
+            audio = self.audio_chunk_queue.get(timeout=1)
+        except queue.Empty:
+            logger.error("No audio chunk in the queue")
+            time.sleep(0.1)
+            return
+
         res = self.vac(audio)
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
@@ -571,74 +622,112 @@ class VACOnlineASRProcessor:
             # VAD returned a result; adjust the frame number
             frame = list(res.values())[0] - self.buffer_offset
             if "start" in res and "end" not in res:
+
+                logger.debug(
+                    f"VAC detected start at {(frame+self.buffer_offset)/self.SAMPLING_RATE:.3f}s"
+                )
+
                 self.status = "voice"
                 send_audio = self.audio_buffer[frame:]
-                if self.online.audio_buffer.shape[0] > 0:
-                    logger.critical(
-                        "Audio buffer is not empty and I am starting a new utterance"
-                    )
-                self.online.init(offset=(frame + self.buffer_offset) / self.SAMPLING_RATE)
-                self.online.insert_audio_chunk(send_audio)
-                self.current_online_chunk_buffer_size += len(send_audio)
+
+                self._add_new_transcription_job(
+                    offset=(frame + self.buffer_offset) / self.SAMPLING_RATE
+                )
+
+                self._send_audio_chunk_for_translation(send_audio)
+
                 self.clear_buffer()
             elif "end" in res and "start" not in res:
+                logger.debug(
+                    f"VAC detected end at {(frame+self.buffer_offset)/self.SAMPLING_RATE:.3f}s"
+                )
                 self.status = "nonvoice"
                 send_audio = self.audio_buffer[:frame]
-                self.online.insert_audio_chunk(send_audio)
-                self.current_online_chunk_buffer_size += len(send_audio)
-                self.is_currently_final = True
+                self._send_audio_chunk_for_translation(send_audio)
+
+                self.TranscriptionJobs[-1].should_finish = True
+
                 self.clear_buffer()
             else:
-                beg = res["start"] - self.buffer_offset
-                end = res["end"] - self.buffer_offset
-                self.status = "nonvoice"
-                send_audio = self.audio_buffer[beg:end]
-                self.online.init(offset=(beg + self.buffer_offset) / self.SAMPLING_RATE)
-                self.online.insert_audio_chunk(send_audio)
-                self.current_online_chunk_buffer_size += len(send_audio)
-                self.is_currently_final = True
-                self.clear_buffer()
+                logger.critical(
+                    "VAD returned both start and end. I don't expect this. Ignoring."
+                )
+                # beg = res["start"] - self.buffer_offset
+                # end = res["end"] - self.buffer_offset
+                # self.status = "nonvoice"
+                # send_audio = self.audio_buffer[beg:end]
+                # self.online.init(offset=(beg + self.buffer_offset) / self.SAMPLING_RATE)
+                # self._send_audio_chunk_for_translation(send_audio)
+
+                # self.is_currently_final = True
+                # self.clear_buffer()
         else:
             if self.status == "voice":
-                self.online.insert_audio_chunk(self.audio_buffer)
-                self.current_online_chunk_buffer_size += len(self.audio_buffer)
+                self._send_audio_chunk_for_translation(self.audio_buffer)
+
                 self.clear_buffer()
             else:
                 # Keep 1 second worth of audio in case VAD later detects voice,
                 # but trim to avoid unbounded memory usage.
-                self.buffer_offset += max(0, len(self.audio_buffer) - self.SAMPLING_RATE)
-                self.audio_buffer = self.audio_buffer[-self.SAMPLING_RATE:]
-                # do not clear buffer but count offset even on nonvoice
-                self.buffer_offset += len(self.audio_buffer)
-        
+                self.buffer_offset += max(
+                    0, len(self.audio_buffer) - self.SAMPLING_RATE
+                )
+
+                self.audio_buffer = self.audio_buffer[-self.SAMPLING_RATE :]
+
+        # Count offset no maters what, otherwise the timestamps will be wrong.
 
     def process_iter(self):
         """
         Depending on the VAD status and the amount of accumulated audio,
         process the current audio chunk.
         """
-        if self.is_currently_final:
-            return self.finish()
-        elif self.current_online_chunk_buffer_size > self.SAMPLING_RATE * self.online_chunk_size:
-            self.current_online_chunk_buffer_size = 0
-            return self.online.process_iter()
-        else:
-            # logger.debug("No online update, only VAD")
-            return (None, None, ""), (None, None, "")
+
+        if len(self.TranscriptionJobs) > 0:
+
+            oldest_job = self.TranscriptionJobs[0]
+
+            if len(self.TranscriptionJobs) > 1:
+                logger.warning(
+                    f"I have {len(self.TranscriptionJobs)} transcription jobs. "
+                )
+
+                assert (
+                    oldest_job.should_finish
+                ), "I have more than one job, but the oldest one is not final."
+
+            if oldest_job.should_finish:
+                res = oldest_job.finish()
+                oldest_job.close()
+                self.TranscriptionJobs.pop(0)
+                del oldest_job
+                return res
+
+            elif (
+                oldest_job.audio_buffer.shape[0]
+                > self.SAMPLING_RATE * self.online_chunk_size
+            ):
+                return oldest_job.process_iter()
+
+        return (None, None, ""), (None, None, "")
 
     def finish(self):
         """Finish processing by flushing any remaining text."""
         result = self.online.finish()
-        self.current_online_chunk_buffer_size = 0
-        self.is_currently_final = False
         return result
-    
+
     def get_buffer(self):
         """
         Get the unvalidated buffer in string format.
         """
-        return self.online.concatenate_tokens(self.online.transcript_buffer.buffer).text
-
+        if len(self.TranscriptionJobs) == 0:
+            return ""
+        else:
+            return concatenate_tsw(
+                self.TranscriptionJobs[-1].transcript_buffer.buffer
+            ).text
 
     def close(self):
-        return self.online.close()
+        for job in self.TranscriptionJobs:
+            job.close()
+            del job

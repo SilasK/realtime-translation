@@ -19,6 +19,7 @@ from ..whisper_streaming.online_asr import words_to_sentences
 from ..utils.logging import log_transcript
 from ..utils.monitor import Monitor
 
+import threading
 
 monitor = Monitor()
 
@@ -46,15 +47,21 @@ def initialize(args, log_to_console=True, log_to_web=False):
         shutil.rmtree(output_folder, ignore_errors=True)
         output_folder.mkdir(exist_ok=True, parents=True)
 
-    # initialize_asr
-    asr, transcriber = asr_factory(args, logfile=None)
-
     min_chunk = args.vac_chunk_size if args.vac else args.min_chunk_size
     logger.info(f"Minimum chunk size: {min_chunk}")
+
+    # initialize_asr
+    asr, transcriber = asr_factory(args, logfile=None)
 
     if args.warmup_file:
         _ = asr.transcribe_file(args.warmup_file)
         logger.info("ASR warmup completed.")
+
+    if args.vac:
+        vac_thread = threading.Thread(
+            target=vac_thread_process, args=(args, transcriber, min_chunk)
+        )
+        vac_thread.start()
 
     # callback funcion for audio
     def put_audiochunk_in_transcriber(chunk):
@@ -77,7 +84,7 @@ def initialize(args, log_to_console=True, log_to_web=False):
         log_to_web=log_to_web,
     )
 
-    translation_pipeline.start()  ### Don't start
+    translation_pipeline.start()
 
     logger.info("Everything set up!")
 
@@ -87,17 +94,26 @@ def initialize(args, log_to_console=True, log_to_web=False):
 ### Main loop
 
 translation_loop_running = True
+vac_loop_running = True
 
 
 ## Keyboard interrupt handler
 def signal_handler(signum, frame):
-    global translation_loop_running
+    global translation_loop_running, vac_loop_running
     logger.info("Stopping audio processing...")
     translation_loop_running = False
+    vac_loop_running = False
+
+
+def vac_thread_process(args, transcriber, min_chunk):
+    assert args.vac, "VAC is not enabled."
+    while vac_loop_running:
+        transcriber.run_vac()
+        time.sleep(min_chunk * 0.9)
 
 
 def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
-
+    global translation_loop_running
     try:
 
         logger.info("Ready to process audio.")
@@ -113,10 +129,11 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
                 o, incomplete = transcriber.process_iter()
 
                 if o[0] is None and incomplete[0] is None:
-                    if not args.vac:
-                        logger.debug("No output from transcriber.")
+                    # if not args.vac:
+                    logger.debug("No output from transcriber.")
 
-                    time.sleep(0.9 * min_chunk)
+                    # time.sleep(0.9 * min_chunk)
+                    time.sleep(0.9)
 
                 if o[0] is not None:
 
@@ -145,7 +162,11 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
         logger.error(f"Error during processing: {e}")
         raise e
     finally:
+
+        translation_loop_running = False
+        vac_loop_running = False
+
         audio_source.stop()
-        transcriber.close()
         translation_pipeline.stop()
+        transcriber.close()
         monitor.stop()
