@@ -175,6 +175,7 @@ class OnlineTranslator:
         model,
         src_lang,
         tgt_lang,
+        model_name,
         output_file: Optional[Path | str] = None,
         log_to_console: bool = True,
         write_to_web: bool = False,
@@ -201,7 +202,7 @@ class OnlineTranslator:
         assert len(self.output_streams) > 0, "No output stream defined"
 
         self.tokenizer = M2M100Tokenizer.from_pretrained(
-            TRANSLATION_MODEL, src_lang=src_lang, tgt_lang=tgt_lang
+            model_name, src_lang=src_lang, tgt_lang=tgt_lang
         )
 
         self.inference_kwargs = inference_ksw
@@ -267,23 +268,25 @@ class TranslationPipeline:
         output_folder: Optional[Path | str] = None,
         log_to_console: bool = True,
         log_to_web: bool = False,
+        model=TRANSLATION_MODEL,
     ):
 
         self.should_run = False
 
-        signal.signal(signal.SIGINT, lambda s, f: self.stop())
+        # signal.signal(signal.SIGINT, lambda s, f: self.stop())
 
         # Load model
+        self.model_name = model
 
-        logger.info(f"Loading model '{TRANSLATION_MODEL}'")
-        self.model = M2M100ForConditionalGeneration.from_pretrained(
-            TRANSLATION_MODEL
-        ).to(TORCH_DEVICE)
+        logger.info(f"Loading model '{self.model_name}'")
+        self.model = M2M100ForConditionalGeneration.from_pretrained(self.model_name).to(
+            TORCH_DEVICE
+        )
 
         # Self tokenizer no target-lang
         self.src_lang = src_lang
         self.tokenizer = M2M100Tokenizer.from_pretrained(
-            TRANSLATION_MODEL, src_lang=self.src_lang
+            self.model_name, src_lang=self.src_lang
         )
 
         self.log_file = open(f"logs/original_{src_lang}.log", "w", encoding="utf-8")
@@ -319,6 +322,7 @@ class TranslationPipeline:
                     self.model,
                     src_lang=src_lang,
                     tgt_lang=lang,
+                    model_name=self.model_name,
                     output_file=output_file,
                     log_to_console=log_to_console,
                     write_to_web=log_to_web,
