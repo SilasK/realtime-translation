@@ -523,12 +523,11 @@ class OnlineASRProcessor:
 class VACOnlineASRProcessor:
     """
     Wraps an OnlineASRProcessor with a Voice Activity Controller (VAC).
-
+    
     It receives small chunks of audio, applies VAD (e.g. with Silero),
     and when the system detects a pause in speech (or end of an utterance)
     it finalizes the utterance immediately.
     """
-
     SAMPLING_RATE = 16000
 
     def __init__(self, online_chunk_size: float, *args, **kwargs):
@@ -537,13 +536,10 @@ class VACOnlineASRProcessor:
 
         # Load a VAD model (e.g. Silero VAD)
         import torch
-
         model, _ = torch.hub.load(repo_or_dir="snakers4/silero-vad", model="silero_vad")
         from src.whisper_streaming.silero_vad_iterator import FixedVADIterator
-
-        self.vac = FixedVADIterator(
-            model
-        )  # we use the default options there: 500ms silence, 100ms padding, etc.
+        # we use the default options there: 500ms silence, 100ms padding, etc.
+        self.vac = FixedVADIterator(model)  
 
         self.logfile = self.online.logfile
         self.init()
@@ -568,47 +564,50 @@ class VACOnlineASRProcessor:
           - decide whether to send the audio to the online ASR processor immediately,
           - and/or to mark the current utterance as finished.
         """
-
         res = self.vac(audio)
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
-        if res is None:
-            # VAD returned no  result;
-            if self.status == "voice":
-                self.online.insert_audio_chunk(self.audio_buffer)
-                self.current_online_chunk_buffer_size += len(self.audio_buffer)
-        else:
-            assert (
-                len(res) == 1
-            ), "I expect only one result from VAD, but maybe I am wrong"
-
-            # Calculate frame nr number from time returned by VAC.
-            vac_key, vac_time = list(res.items())[0]
-            frame = vac_time - self.buffer_offset + len(audio)
-
-            logger.debug(f"VAC detected {vac_key} at {vac_time / self.SAMPLING_RATE}s ")
-
-            if vac_key == "start":
-
+        if res is not None:
+            # VAD returned a result; adjust the frame number
+            frame = list(res.values())[0] - self.buffer_offset
+            if "start" in res and "end" not in res:
                 self.status = "voice"
                 send_audio = self.audio_buffer[frame:]
                 if self.online.audio_buffer.shape[0] > 0:
                     logger.critical(
                         "Audio buffer is not empty and I am starting a new utterance"
                     )
-                self.online.init(offset=vac_time / self.SAMPLING_RATE)
-
-            elif vac_key == "end":
-
+                self.online.init(offset=(frame + self.buffer_offset) / self.SAMPLING_RATE)
+                self.online.insert_audio_chunk(send_audio)
+                self.current_online_chunk_buffer_size += len(send_audio)
+                self.clear_buffer()
+            elif "end" in res and "start" not in res:
                 self.status = "nonvoice"
                 send_audio = self.audio_buffer[:frame]
+                self.online.insert_audio_chunk(send_audio)
+                self.current_online_chunk_buffer_size += len(send_audio)
                 self.is_currently_final = True
-
-            self.online.insert_audio_chunk(send_audio)
-            self.current_online_chunk_buffer_size += len(send_audio)
-
-        # Clear the audio buffer at the end
-        self.clear_buffer()
+                self.clear_buffer()
+            else:
+                beg = res["start"] - self.buffer_offset
+                end = res["end"] - self.buffer_offset
+                self.status = "nonvoice"
+                send_audio = self.audio_buffer[beg:end]
+                self.online.init(offset=(beg + self.buffer_offset) / self.SAMPLING_RATE)
+                self.online.insert_audio_chunk(send_audio)
+                self.current_online_chunk_buffer_size += len(send_audio)
+                self.is_currently_final = True
+                self.clear_buffer()
+        else:
+            if self.status == "voice":
+                self.online.insert_audio_chunk(self.audio_buffer)
+                self.current_online_chunk_buffer_size += len(self.audio_buffer)
+                self.clear_buffer()
+            else:
+                # Keep 1 second worth of audio in case VAD later detects voice,
+                # but trim to avoid unbounded memory usage.
+                self.buffer_offset += max(0, len(self.audio_buffer) - self.SAMPLING_RATE)
+                self.audio_buffer = self.audio_buffer[-self.SAMPLING_RATE:]
 
     def process_iter(self):
         """
@@ -617,14 +616,11 @@ class VACOnlineASRProcessor:
         """
         if self.is_currently_final:
             return self.finish()
-        elif (
-            self.current_online_chunk_buffer_size
-            > self.SAMPLING_RATE * self.online_chunk_size
-        ):
+        elif self.current_online_chunk_buffer_size > self.SAMPLING_RATE * self.online_chunk_size:
             self.current_online_chunk_buffer_size = 0
             return self.online.process_iter()
         else:
-            # logger.debug("no online update, only VAD")
+            # logger.debug("No online update, only VAD")
             return (None, None, ""), (None, None, "")
 
     def finish(self):
@@ -633,6 +629,13 @@ class VACOnlineASRProcessor:
         self.current_online_chunk_buffer_size = 0
         self.is_currently_final = False
         return result
+    
+    def get_buffer(self):
+        """
+        Get the unvalidated buffer in string format.
+        """
+        return self.online.concatenate_tokens(self.online.transcript_buffer.buffer).text
+
 
     def close(self):
         return self.online.close()
