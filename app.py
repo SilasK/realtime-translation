@@ -36,6 +36,7 @@ add_other_loggers(
     [
         "src.translation.server",
         "src.whisper_streaming.online_asr",
+        "src.whisper_streaming.whisper_online",
         "src.translation.translation",
         "src.whisper.audio",
         "src.whisper.timestamped_words",

@@ -9,6 +9,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
 class ASRBase:
     sep = " "  # join transcribe words with this character (" " for whisper_timestamped,
     # "" for faster-whisper because it emits the spaces when neeeded)
@@ -34,9 +35,8 @@ class ASRBase:
 
     def use_vad(self):
         raise NotImplemented("must be implemented in the child class")
-    
 
-    def transcribe_file(self, audio_file: str|Path, init_prompt=""):
+    def transcribe_file(self, audio_file: str | Path, init_prompt=""):
         audio_file = Path(audio_file)
         assert audio_file.exists(), f"Audio file {audio_file} does not exist."
 
@@ -44,12 +44,6 @@ class ASRBase:
 
         audio = load_audio(audio_file)
         return self.transcribe(audio, init_prompt)
-
-
-
-
-
-
 
 
 class WhisperTimestampedASR(ASRBase):
@@ -181,7 +175,7 @@ class MLXWhisper(ASRBase):
     Significantly faster than faster-whisper (without CUDA) on Apple M1.
     """
 
-    sep = "" # In my experience in french it should also be no space.
+    sep = ""  # In my experience in french it should also be no space.
 
     def load_model(self, modelsize=None, cache_dir=None, model_dir=None):
         """
@@ -211,11 +205,11 @@ class MLXWhisper(ASRBase):
             )
 
         self.model_size_or_path = model_size_or_path
-        
+
         # In mlx_whisper.transcribe, dtype is defined as:
         # dtype = mx.float16 if decode_options.get("fp16", True) else mx.float32
         # Since we do not use decode_options in self.transcribe, we will set dtype to mx.float16
-        dtype = mx.float16 
+        dtype = mx.float16
         ModelHolder.get_model(model_size_or_path, dtype)
         return transcribe
 
@@ -246,26 +240,33 @@ class MLXWhisper(ASRBase):
             "large": "mlx-community/whisper-large-mlx",
         }
 
-        # Retrieve the corresponding MLX model path
-        mlx_model_path = model_mapping.get(model_name)
-
-        if mlx_model_path:
-            return mlx_model_path
-        else:
-            raise ValueError(
-                f"Model name '{model_name}' is not recognized or not supported."
+        if model_name in model_mapping:
+            # Retrieve the corresponding MLX model path
+            mlx_model_path = model_mapping.get(model_name)
+            logger.debug(
+                f"Model name '{model_name}' translated to MLX-compatible model path '{mlx_model_path}'."
             )
+        elif Path(model_name).exists():
+            # If the model name is a path to a custom model, use it as is
+            mlx_model_path = model_name
+        else:
+            logger.warning(
+                f"Model name '{model_name}' is not recognized. I hope it is a path to a custom model."
+            )
+            mlx_model_path = model_name
+
+        return mlx_model_path
 
     def transcribe(self, audio, init_prompt=""):
-        if self.transcribe_kargs:
-            logger.warning("Transcribe kwargs (vad, task) are not compatible with MLX Whisper and will be ignored.")
+
         segments = self.model(
             audio,
             language=self.original_language,
             initial_prompt=init_prompt,
-            word_timestamps=True,
             condition_on_previous_text=True,
             path_or_hf_repo=self.model_size_or_path,
+            word_timestamps=True,
+            **self.transcribe_kargs,
         )
         return segments.get("segments", [])
 
@@ -284,10 +285,14 @@ class MLXWhisper(ASRBase):
         return [s["end"] for s in res]
 
     def use_vad(self):
-        self.transcribe_kargs["vad_filter"] = True
+        logger.warning(
+            "Transcribe kwarg 'vad'is not compatible with MLX Whisper and will be ignored."
+        )
 
     def set_translate_task(self):
-        self.transcribe_kargs["task"] = "translate"
+        logger.warning(
+            "Transcribe kwarg 'task' is not compatible with MLX Whisper and will be ignored."
+        )
 
 
 class OpenaiApiASR(ASRBase):
