@@ -278,16 +278,21 @@ class TranslationPipeline:
         # Load model
         self.model_name = model
 
-        logger.info(f"Loading model '{self.model_name}'")
-        self.model = M2M100ForConditionalGeneration.from_pretrained(self.model_name).to(
-            TORCH_DEVICE
-        )
+        if self.model_name.contains("M2M100"):
 
-        # Self tokenizer no target-lang
-        self.src_lang = src_lang
-        self.tokenizer = M2M100Tokenizer.from_pretrained(
-            self.model_name, src_lang=self.src_lang
-        )
+            logger.info(f"Loading model '{self.model_name}'")
+            self.model = M2M100ForConditionalGeneration.from_pretrained(
+                self.model_name
+            ).to(TORCH_DEVICE)
+
+            # Self tokenizer no target-lang
+            self.src_lang = src_lang
+            self.tokenizer = M2M100Tokenizer.from_pretrained(
+                self.model_name, src_lang=self.src_lang
+            )
+
+        else:
+            raise NotImplementedError("Only M2M100 model is supported")
 
         self.log_file = open(f"logs/original_{src_lang}.log", "w", encoding="utf-8")
 
