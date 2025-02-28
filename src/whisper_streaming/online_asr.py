@@ -608,6 +608,9 @@ class VACOnlineASRProcessor:
                 # but trim to avoid unbounded memory usage.
                 self.buffer_offset += max(0, len(self.audio_buffer) - self.SAMPLING_RATE)
                 self.audio_buffer = self.audio_buffer[-self.SAMPLING_RATE:]
+                # do not clear buffer but 
+                self.buffer_offset += len(self.audio_buffer)
+        
 
     def process_iter(self):
         """
