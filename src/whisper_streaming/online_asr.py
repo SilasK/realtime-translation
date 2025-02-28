@@ -608,7 +608,7 @@ class VACOnlineASRProcessor:
                 # but trim to avoid unbounded memory usage.
                 self.buffer_offset += max(0, len(self.audio_buffer) - self.SAMPLING_RATE)
                 self.audio_buffer = self.audio_buffer[-self.SAMPLING_RATE:]
-                # do not clear buffer but 
+                # do not clear buffer but count offset even on nonvoice
                 self.buffer_offset += len(self.audio_buffer)
         
 
