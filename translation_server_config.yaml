@@ -1,6 +1,6 @@
 lan: fr # source language
 target_languages:
-  - en
+#  - en
 #  - de
   - uk
 #  - es
@@ -22,6 +22,7 @@ min_chunk_size: 2.0
 buffer_trimming: sentence
 buffer_trimming_sec: 21
 translation_model: "deepl"
+# translation_model: "facebook/m2m100_418M"
 
 log_level: DEBUG
 

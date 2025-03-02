@@ -209,9 +209,11 @@ class OnlineTranslator:
 
         if "m2m100" in model_name:
 
-            # self.tokenizer = M2M100Tokenizer.from_pretrained(
-            #    model_name, src_lang=src_lang, tgt_lang=tgt_lang
-            # )
+            from transformers import M2M100Tokenizer
+
+            self.tokenizer = M2M100Tokenizer.from_pretrained(
+                model_name, src_lang=src_lang, tgt_lang=tgt_lang
+            )
 
             self.inference_kwargs = inference_ksw
             self.inference_kwargs.setdefault(
