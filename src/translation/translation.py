@@ -129,9 +129,7 @@ class WebOutputStream(TextOutputStreamBase):
         else:
             self.incomplete_buffer = translated_text
 
-        logger.debug(
-            f"WebOutputStream for language {self.language} send new content: {translated_text}"
-        )
+        # logger.debug(f"WebOutputStream for language {self.language} send new content: {translated_text}")
 
     def get_new_content(self) -> Tuple[str, str]:
         """Get new content since last check and the incomplete content"""
@@ -232,7 +230,7 @@ class OnlineTranslator:
             )
 
             monitor.log(
-                "Translation", self.tgt_lang, "translation time", translation_time, ""
+                "Translation", self.tgt_lang, "Processing_time", translation_time, ""
             )
 
             return translated_text
@@ -278,7 +276,7 @@ class TranslationPipeline:
         # Load model
         self.model_name = model
 
-        if self.model_name.contains("M2M100"):
+        if "m2m100" in self.model_name:
 
             logger.info(f"Loading model '{self.model_name}'")
             self.model = M2M100ForConditionalGeneration.from_pretrained(

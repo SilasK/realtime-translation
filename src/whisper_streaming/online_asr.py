@@ -7,8 +7,9 @@ from typing import Optional
 import queue
 import time
 
-# from ..utils.monitor import Monitor
-# monitor = Monitor()
+from ..utils.monitor import Monitor
+
+monitor = Monitor()
 
 logger = logging.getLogger(__name__)
 
@@ -286,6 +287,12 @@ class OnlineASRProcessor:
 
     def insert_audio_chunk(self, audio):
         self.audio_buffer = np.append(self.audio_buffer, audio)
+        monitor.log_delay(
+            "Transcription",
+            "Audio_queue",
+            self.buffer_time_offset,
+            "Audio buffer at time of insertion no VAC",
+        )
 
     def transcribe_audio_buffer(self):
 
@@ -301,9 +308,34 @@ class OnlineASRProcessor:
         )
 
         ## Transcribe and format the result to [(beg,end,"word1"), ...]
-
+        start_time = time.time()
         res = self.asr.transcribe(self.audio_buffer, init_prompt=self.promt)
         tsw = self.asr.ts_words(res)
+
+        raw_transcript = concatenate_tsw(tsw)[2]
+
+        monitor.log(
+            "Transcription",
+            None,
+            "Buffer_size",
+            len(self.audio_buffer) / self.SAMPLING_RATE,
+            raw_transcript,
+        )
+
+        monitor.log_delay(
+            "Transcription",
+            "Raw",
+            self.buffer_time_offset,
+            raw_transcript,
+        )
+
+        monitor.log(
+            "Transcription",
+            None,
+            "Processing_time",
+            time.time() - start_time,
+            raw_transcript,
+        )
 
         # shift
         tsw = [
@@ -497,7 +529,7 @@ class OnlineASRProcessor:
         Ignore commited and transcribing audio buffer and return.
         This is executed when we know the audio buffer contains the last words of the utterance.
         """
-
+        monitor.log("Transcription", "Finish", "Timepoint", 1, "")
         tsw = self.transcribe_audio_buffer()
 
         finish_words = concatenate_tsw(tsw)
@@ -571,7 +603,6 @@ class VACOnlineASRProcessor:
         self.buffer_offset = 0  # in frames
         self.audio_chunk_queue = queue.Queue()
         self.TranscriptionJobs = []
-        # self._add_new_transcription_job()
 
     def _add_new_transcription_job(self, **kwargs):
         new_online = TranscriptionJob(
@@ -606,16 +637,26 @@ class VACOnlineASRProcessor:
         """
 
         # logger.debug(f"{self.audio_chunk_queue.qsize()} chunks in the queue")
-        # monitor.log("VAC", None, "Queue_size", self.audio_chunk_queue.qsize(), "")
+        # monitor.log(   "Transcription", "VAC", "queue size", self.audio_chunk_queue.qsize(), "")
 
         try:
             audio = self.audio_chunk_queue.get(timeout=1)
         except queue.Empty:
             logger.error("No audio chunk in the queue")
-            time.sleep(0.1)
+            # TODO: this should be adapted to the length of the vac interval which is not available here
+            time.sleep(0.3)
             return
 
+        start_time = time.time()
         res = self.vac(audio)
+        monitor.log(
+            "Transcription",
+            "VAC",
+            "Processing_time",
+            time.time() - start_time,
+            "",
+        )
+
         self.audio_buffer = np.append(self.audio_buffer, audio)
 
         if res is not None:
@@ -625,6 +666,12 @@ class VACOnlineASRProcessor:
 
                 logger.debug(
                     f"VAC detected start at {(frame+self.buffer_offset)/self.SAMPLING_RATE:.3f}s"
+                )
+                monitor.log_delay(
+                    "Transcription",
+                    "VAC",
+                    (frame + self.buffer_offset) / self.SAMPLING_RATE,
+                    "",
                 )
 
                 self.status = "voice"
@@ -683,14 +730,15 @@ class VACOnlineASRProcessor:
         process the current audio chunk.
         """
 
-        if len(self.TranscriptionJobs) > 0:
+        N_jobs = len(self.TranscriptionJobs)
+        monitor.log("Transcription", "VAC", "N jobs", N_jobs, "")
+
+        if N_jobs > 0:
 
             oldest_job = self.TranscriptionJobs[0]
 
-            if len(self.TranscriptionJobs) > 1:
-                logger.warning(
-                    f"I have {len(self.TranscriptionJobs)} transcription jobs. "
-                )
+            if N_jobs > 1:
+                logger.warning(f"I have {N_jobs} transcription jobs. ")
 
                 assert (
                     oldest_job.should_finish

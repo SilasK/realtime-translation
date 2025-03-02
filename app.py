@@ -48,7 +48,7 @@ from src.utils.monitor import Monitor
 from src.utils.logging import InterceptHandler
 
 monitor = Monitor()
-monitor.logger.handlers.append(InterceptHandler())
+# monitor.logger.handlers.append(InterceptHandler())
 
 
 args = server.load_config(CONFIG_FILE)
