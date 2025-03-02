@@ -24,7 +24,9 @@ class Monitor:
 
         # File handler for monitor logs.
         Path("logs").mkdir(exist_ok=True)
-        file_handler = logging.FileHandler("logs/monitor.log")
+        log_file = Path("logs/monitor.log")
+        log_file.unlink(missing_ok=True)
+        file_handler = logging.FileHandler(str(log_file))
         file_handler.setLevel(logging.DEBUG)
 
         formatter = logging.Formatter("%(asctime)s %(message)s")

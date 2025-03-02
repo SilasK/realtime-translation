@@ -305,6 +305,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/07/46/ad32d62c13369116ff9761c5e4eac248cfe9553abb6e4828f77a7adafaf6/av-14.0.1-cp311-cp311-macosx_11_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/a7/06/3d6badcf13db419e25b07041d9c7b4a2c331d3f4e7134445ec5df57714cd/coloredlogs-15.0.1-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/7e/4f/3b409614fe15c517d3db03c436efdaead805c7a8740b23df3cad9e6a126d/ctranslate2-4.5.0-cp311-cp311-macosx_11_0_arm64.whl
+      - pypi: https://files.pythonhosted.org/packages/16/85/fbed36553aa9b154a90ebd19feb0ce79985b5694c36a65aa8cb76f6539be/deepl-1.21.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ad/69/28359d152f9e2ec1ff4dff3da47011b6346e9a472f89b409bb13017a7d1f/faster_whisper-1.1.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b9/f8/feced7779d755758a52d1f6635d990b8d98dc0a29fa568bbe0625f18fdf3/filelock-3.16.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fb/b4/31c461eef98b96b8ab736d97274548eaf2b2e349bf09e4de3902f7d53084/flatbuffers-24.12.23-py2.py3-none-any.whl
@@ -868,6 +869,14 @@ packages:
   - pkg:pypi/decorator?source=hash-mapping
   size: 14068
   timestamp: 1733236549190
+- pypi: https://files.pythonhosted.org/packages/16/85/fbed36553aa9b154a90ebd19feb0ce79985b5694c36a65aa8cb76f6539be/deepl-1.21.0-py3-none-any.whl
+  name: deepl
+  version: 1.21.0
+  sha256: f9cb882b2cee4b0a28bc648e5af27f357e5e8ad5dad1d4a40cb23c754c2be628
+  requires_dist:
+  - keyring>=23.4.1,<24.0.0 ; python_full_version >= '3.6' and python_full_version < '4' and extra == 'keyring'
+  - requests>=2,<3
+  requires_python: '>=3.6.2,<4'
 - conda: https://conda.anaconda.org/conda-forge/noarch/defusedxml-0.7.1-pyhd8ed1ab_0.tar.bz2
   sha256: 9717a059677553562a8f38ff07f3b9f61727bd614f505658b0a5ecbcf8df89be
   md5: 961b3a227b437d82ad7054484cfa71b2
@@ -3348,8 +3357,6 @@ packages:
   - python-tzdata >=2022a
   - python_abi 3.11.* *_cp311
   - pytz >=2020.1
-  arch: arm64
-  platform: osx
   license: BSD-3-Clause
   license_family: BSD
   purls:

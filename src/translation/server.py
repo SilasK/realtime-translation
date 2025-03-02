@@ -79,6 +79,7 @@ def initialize(args, log_to_console=True, log_to_web=False):
     translation_pipeline = TranslationPipeline(
         args.lan,
         args.target_languages,
+        model=args.translation_model,
         output_folder=output_folder,
         log_to_console=log_to_console,
         log_to_web=log_to_web,
@@ -142,7 +143,7 @@ def main_loop(args, audio_source, transcriber, translation_pipeline, min_chunk):
                         logger.info(
                             f"Time since last sentence: {time_since_last_sentence}s. Add paragraph."
                         )
-                        o = (o[0], o[1], "<br><br>" + o[2])
+                        o = (o[0], o[1], "\n\n" + o[2])
 
                     translation_pipeline.put_text(o, is_complete=True)
                     last_sentence = o[1]

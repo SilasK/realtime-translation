@@ -10,15 +10,18 @@ from pathlib import Path
 
 from ..utils.monitor import Monitor
 
+# Lode deepl key
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 logger = logging.getLogger(__name__)
 monitor = Monitor()
 
-from transformers import M2M100Config, M2M100ForConditionalGeneration, M2M100Tokenizer
-
 
 import torch
-import signal
 
 
 def define_torch_device():
@@ -28,9 +31,6 @@ def define_torch_device():
         return "mps"
     else:
         return "cpu"
-
-
-TRANSLATION_MODEL = "facebook/m2m100_418M"  # "facebook/m2m100_1.2B"
 
 
 TORCH_DEVICE = define_torch_device()
@@ -120,14 +120,21 @@ class WebOutputStream(TextOutputStreamBase):
             WebOutputStream._streams[language] = self
             logger.debug(f"Created WebOutputStream for language: {language}")
 
+    def modify_for_web(self, text: str) -> str:
+        """Modify text for web display"""
+        return text.replace("\n", "<br>").replace(" ", "&nbsp;")
+
     def write(self, translated_text: str, is_complete: bool):
         """Write translated text to queue and buffer"""
+
+        text_for_web = self.modify_for_web(translated_text)
+
         if is_complete:
-            self.queue.put(translated_text)
-            self.buffer.append(translated_text)
+            self.queue.put(text_for_web)
+            self.buffer.append(text_for_web)
 
         else:
-            self.incomplete_buffer = translated_text
+            self.incomplete_buffer = text_for_web
 
         # logger.debug(f"WebOutputStream for language {self.language} send new content: {translated_text}")
 
@@ -198,23 +205,74 @@ class OnlineTranslator:
         self.log_file = open(f"logs/translation_{tgt_lang}.log", "w", encoding="utf-8")
 
         assert len(self.output_streams) > 0, "No output stream defined"
+        self.model_name = model_name
 
-        self.tokenizer = M2M100Tokenizer.from_pretrained(
-            model_name, src_lang=src_lang, tgt_lang=tgt_lang
+        if "m2m100" in model_name:
+
+            # self.tokenizer = M2M100Tokenizer.from_pretrained(
+            #    model_name, src_lang=src_lang, tgt_lang=tgt_lang
+            # )
+
+            self.inference_kwargs = inference_ksw
+            self.inference_kwargs.setdefault(
+                "forced_bos_token_id", self.tokenizer.get_lang_id(self.tgt_lang)
+            )
+        elif model_name == "deepl":
+            pass
+        else:
+            raise NotImplementedError("Only M2M100 and deepl model is supported")
+
+    #    def tokenize_text(self, text: str) -> torch.Tensor:
+    #        return self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
+
+    def translate_prepared_text(self, prepared_text: torch.Tensor | str) -> str:
+
+        before_inference = time.time()
+
+        if "m2m100" in self.model_name:
+
+            translated_text = self._translate_tokenized_text(prepared_text)
+        elif self.model_name == "deepl":
+            translated_text = self._translate_with_deepl(prepared_text)
+        else:
+            raise NotImplementedError("Only M2M100 and deepl model is supported")
+
+        translation_time = time.time() - before_inference
+
+        logger.debug(
+            f"Translating text to {self.tgt_lang} took {translation_time:.2f}s"
         )
 
-        self.inference_kwargs = inference_ksw
-        self.inference_kwargs.setdefault(
-            "forced_bos_token_id", self.tokenizer.get_lang_id(self.tgt_lang)
+        monitor.log(
+            "Translation", self.tgt_lang, "Processing_time", translation_time, ""
         )
+        return translated_text
 
-    def tokenize_text(self, text: str) -> torch.Tensor:
-        return self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
+    def _translate_with_deepl(self, text: str) -> str:
+        assert "deepl" == self.model_name, "Expect 'deepl' model"
+        assert isinstance(text, str), "Input must be a string"
 
-    def translate_tokenized_text(self, tokenized_text: torch.Tensor) -> str:
+        logger.critical("Translate with deepl!!")
+
         try:
 
-            before_inference = time.time()
+            result = self.model.translate_text(
+                text,
+                target_lang=translate_language_code_for_deepl(self.tgt_lang),
+                source_lang=translate_language_code_for_deepl(self.src_lang),
+            )
+            return result.text
+
+        except Exception as e:
+            logger.error(f"Error translating to {self.tgt_lang}\nError:\n\n{e}")
+            return "[ Translation Error ]"
+
+    def _translate_tokenized_text(self, tokenized_text: torch.Tensor) -> str:
+        assert isinstance(tokenized_text, torch.Tensor), "Input must be a tensor"
+        assert "m2m100" in self.model_name, "Expect a m2m100 model"
+
+        try:
+
             generated_tokens = self.model.generate(
                 **tokenized_text, **self.inference_kwargs
             )
@@ -223,16 +281,6 @@ class OnlineTranslator:
                 generated_tokens, skip_special_tokens=True
             )[0]
 
-            translation_time = time.time() - before_inference
-
-            logger.debug(
-                f"Translating text to {self.tgt_lang} took {translation_time:.2f}s"
-            )
-
-            monitor.log(
-                "Translation", self.tgt_lang, "Processing_time", translation_time, ""
-            )
-
             return translated_text
 
         except Exception as e:
@@ -240,9 +288,10 @@ class OnlineTranslator:
             return "[ Translation Error ]"
 
     def translate_to_output(
-        self, tokenized_text: torch.Tensor, is_complete: bool
+        self, prepared_text: torch.Tensor | str, is_complete: bool
     ) -> None:
-        translation = self.translate_tokenized_text(tokenized_text)
+
+        translation = self.translate_prepared_text(prepared_text)
 
         prefix = "[ Complete ] " if is_complete else "[Incomplete] "
         self.log_file.write(prefix + translation + "\n")
@@ -263,10 +312,10 @@ class TranslationPipeline:
         self,
         src_lang,
         target_languages: List[str],
+        model: str = "facebook/m2m100_418M",
         output_folder: Optional[Path | str] = None,
         log_to_console: bool = True,
         log_to_web: bool = False,
-        model=TRANSLATION_MODEL,
     ):
 
         self.should_run = False
@@ -275,10 +324,12 @@ class TranslationPipeline:
 
         # Load model
         self.model_name = model
+        logger.info(f"Loading model '{self.model_name}'")
 
         if "m2m100" in self.model_name:
 
-            logger.info(f"Loading model '{self.model_name}'")
+            from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
+
             self.model = M2M100ForConditionalGeneration.from_pretrained(
                 self.model_name
             ).to(TORCH_DEVICE)
@@ -288,9 +339,14 @@ class TranslationPipeline:
             self.tokenizer = M2M100Tokenizer.from_pretrained(
                 self.model_name, src_lang=self.src_lang
             )
+        elif self.model_name == "deepl":
+
+            import deepl
+
+            self.model = deepl.DeepLClient(os.getenv("DEEPL_AUTH_KEY"))
 
         else:
-            raise NotImplementedError("Only M2M100 model is supported")
+            raise NotImplementedError("Only M2M100 and deepl models are supported")
 
         self.log_file = open(f"logs/original_{src_lang}.log", "w", encoding="utf-8")
 
@@ -368,10 +424,10 @@ class TranslationPipeline:
 
             if is_complete or (queue_size == 0):
 
-                tokenized_text = self._tokenize(text_segment[2])
+                prepared_text = self.prepare(text_segment[2])
 
                 for T in self.translators:
-                    T.translate_to_output(tokenized_text, is_complete)
+                    T.translate_to_output(prepared_text, is_complete)
 
                 monitor.log_delay(
                     "Translation", subcategory, text_segment[1], text_segment[2]
@@ -414,8 +470,12 @@ class TranslationPipeline:
 
             logger.info("Translation pipeline stopped")
 
-    def _tokenize(self, text):
-        return self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
+    def prepare(self, text):
+
+        if "m2m100" in self.model_name:
+            return self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
+        else:
+            return text
 
     def put_text(self, transcription_segment: tuple, is_complete: bool):
 
@@ -433,6 +493,13 @@ class TranslationPipeline:
             output_stream.write(transcription_segment[2], is_complete=is_complete)
 
         self.translation_queue.put((transcription_segment, is_complete))
+
+
+def translate_language_code_for_deepl(lang):
+    if lang == "en":
+        return "EN-US"
+    else:
+        return lang.upper()
 
 
 LanguageName = {
