@@ -15,11 +15,21 @@ class ASRBase:
     # "" for faster-whisper because it emits the spaces when neeeded)
 
     def __init__(
-        self, lan, modelsize=None, cache_dir=None, model_dir=None, logfile=sys.stderr
+        self,
+        lan,
+        modelsize=None,
+        cache_dir=None,
+        model_dir=None,
+        logfile=sys.stderr,
+        transcribe_kargs=None,
     ):
         self.logfile = logfile
 
-        self.transcribe_kargs = {}
+        if transcribe_kargs is None:
+            self.transcribe_kargs = {}
+        else:
+            self.transcribe_kargs = transcribe_kargs
+
         if lan == "auto":
             self.original_language = None
         else:

@@ -227,12 +227,11 @@ class OnlineTranslator:
     #    def tokenize_text(self, text: str) -> torch.Tensor:
     #        return self.tokenizer(text, return_tensors="pt").to(TORCH_DEVICE)
 
-    def translate_prepared_text(self, prepared_text: torch.Tensor | str) -> str:
+    def translate_prepared_text(self, prepared_text) -> str:
 
         before_inference = time.time()
 
         if "m2m100" in self.model_name:
-
             translated_text = self._translate_tokenized_text(prepared_text)
         elif self.model_name == "deepl":
             translated_text = self._translate_with_deepl(prepared_text)
@@ -269,8 +268,7 @@ class OnlineTranslator:
             logger.error(f"Error translating to {self.tgt_lang}\nError:\n\n{e}")
             return "[ Translation Error ]"
 
-    def _translate_tokenized_text(self, tokenized_text: torch.Tensor) -> str:
-        assert isinstance(tokenized_text, torch.Tensor), "Input must be a tensor"
+    def _translate_tokenized_text(self, tokenized_text) -> str:
         assert "m2m100" in self.model_name, "Expect a m2m100 model"
 
         try:
@@ -289,9 +287,7 @@ class OnlineTranslator:
             logger.error(f"Error translating to {self.tgt_lang}\nError:\n\n{e}")
             return "[ Translation Error ]"
 
-    def translate_to_output(
-        self, prepared_text: torch.Tensor | str, is_complete: bool
-    ) -> None:
+    def translate_to_output(self, prepared_text, is_complete: bool) -> None:
 
         translation = self.translate_prepared_text(prepared_text)
 

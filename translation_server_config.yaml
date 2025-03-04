@@ -9,20 +9,20 @@ warmup_file: "/Users/silas/GitHub/translation_streaming/mydata/samples_jfk.wav"
 input_audio: "/Users/silas/GitHub/translation_streaming/mydata/preche.wav"
 # input_audio: "mic"
 
-model: large-v3-turbo
-# model: /Users/silas/GitHub/Transcription/mlx_models/whisper-large-v3-french
+# model: large-v3-turbo
+model: /Users/silas/GitHub/Transcription/mlx_models/whisper-large-v3-french
 
 task: transcribe
 backend: mlx-whisper
 min_chunk_size: 2.0
 
-# buffer_trimming: segment
+buffer_trimming: segment
 # buffer_trimming_sec: 15
 
-buffer_trimming: sentence
-buffer_trimming_sec: 21
-translation_model: "deepl"
-# translation_model: "facebook/m2m100_418M"
+# buffer_trimming: sentence
+buffer_trimming_sec: 15
+# translation_model: "deepl"
+translation_model: "facebook/m2m100_418M"
 
 log_level: DEBUG
 
