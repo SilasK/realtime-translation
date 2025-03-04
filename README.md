@@ -2,9 +2,9 @@
 
 A powerful, easy-to-use application for live translation and transcription using state-of-the-art AI models. Built with streaming capabilities for real-time performance.
 
-| Main Page                            | Translation Page                                   |
-| ------------------------------------ | -------------------------------------------------- |
-| ![main page](./images/main_page.png) | ![translation page](./images/translation_page.png) |
+| Main Page                            | Translation Page                              |
+| ------------------------------------ | --------------------------------------------- |
+| ![main page](./images/main_page.png) | ![translation page](./images/translation.png) |
 
 ## ✨ Features
 
