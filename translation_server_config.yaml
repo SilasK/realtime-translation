@@ -1,16 +1,16 @@
 lan: fr # source language
 target_languages:
-#  - en
-#  - de
+  - en
+  - de
   - uk
-#  - es
+  - es
 
 warmup_file: "/Users/silas/GitHub/translation_streaming/mydata/samples_jfk.wav"
 input_audio: "/Users/silas/GitHub/translation_streaming/mydata/preche.wav"
 # input_audio: "mic"
 
-# model: large-v3-turbo
-model: /Users/silas/GitHub/Transcription/mlx_models/whisper-large-v3-french
+model: large-v3-turbo
+# model: /Users/silas/GitHub/Transcription/mlx_models/whisper-large-v3-french
 
 task: transcribe
 backend: mlx-whisper
