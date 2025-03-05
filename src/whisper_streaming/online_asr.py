@@ -102,7 +102,7 @@ def check_words(words):
 
         max_freq = max(word_freq.values()) / len(words)
         if max_freq > 0.5:
-            logger.error(
+            logger.warning(
                 f"Max frequency of a word is {max_freq}. Ignore all words: {concatenate_tsw(words)[2]}"
             )
             return []
@@ -603,6 +603,7 @@ class VACOnlineASRProcessor:
         self.buffer_offset = 0  # in frames
         self.audio_chunk_queue = queue.Queue()
         self.TranscriptionJobs = []
+        self.current_online_chunk_buffer_size = 0
 
     def _add_new_transcription_job(self, **kwargs):
         new_online = TranscriptionJob(
@@ -625,6 +626,7 @@ class VACOnlineASRProcessor:
     def _send_audio_chunk_for_translation(self, audio: np.ndarray):
         try:
             self.TranscriptionJobs[-1].insert_audio_chunk(audio)
+            self.current_online_chunk_buffer_size += len(audio)
         except IndexError as e:
             raise Exception("No transcription job to send audio to.") from e
 
@@ -752,9 +754,11 @@ class VACOnlineASRProcessor:
                 return res
 
             elif (
-                oldest_job.audio_buffer.shape[0]
+                self.current_online_chunk_buffer_size
                 > self.SAMPLING_RATE * self.online_chunk_size
             ):
+                # Reset to zero
+                self.current_online_chunk_buffer_size = 0
                 return oldest_job.process_iter()
 
         return (None, None, ""), (None, None, "")
