@@ -234,7 +234,7 @@ async def transcription_processor(shared_state, pcm_queue, online):
             new_tokens = online.process_iter()
             
             if new_tokens:
-                full_transcription += sep.join([t.text for t in new_tokens])
+                full_transcription += new_tokens.get_text(sep=sep)
                 
             _buffer = online.get_buffer()
             buffer = _buffer.text
