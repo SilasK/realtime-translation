@@ -158,9 +158,13 @@ class TimedList(list):
             self.sep = other.sep
             return
         else:
-            if self.sep != other.sep:
-                logger.warning(f"Two TimedLists with different separators are being extended: {self.sep} != {other.sep} use ' ' in future")
-                self.sep = ' '
+            if (self.sep != other.sep):
+                if self.sep is None:
+                    self.sep = other.sep
+                elif other.sep is not None:
+                    logger.warning(f"Two TimedLists with different separators are being extended: '{self.sep}' != '{other.sep}' use ' ' in future")
+                    self.sep = ' '
+
             super().extend(other)
         
         
