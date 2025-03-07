@@ -87,8 +87,7 @@ class HypothesisBuffer:
         """
         Remove tokens (from the beginning) that have ended before `time`.
         """
-        while self.committed_in_buffer and self.committed_in_buffer[0].end <= time:
-            self.committed_in_buffer.pop(0)
+        _,self.committed_in_buffer= self.committed_in_buffer.split_at(time, edge_word_goes_left=False)
 
 
 

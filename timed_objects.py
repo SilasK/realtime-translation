@@ -222,7 +222,7 @@ class TimedList(list):
             # find the first word that ends after the time
             # word at i goes to the right list
             for i, word in enumerate(self):
-                if word.end > time:
+                if word.end >= time:
                     break
             else:
                 return self, TimedList([])
