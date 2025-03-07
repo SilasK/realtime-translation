@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Tuple
 
 import logging
 logger = logging.getLogger(__name__)
@@ -75,10 +75,10 @@ class TimedList(list):
 
         Example:
             >>> sequence = TimedList([TimedText(0.0, 1.0, "Hello"), TimedText(1.0, 2.0, "World")])
+            >>> sequence.concatenate() == TimedText(start=0.0, end=2.0, text='Hello World')
+            True
             >>> sequence.sep==" "
             True
-            >>> sequence.concatenate()
-            TimedText(start=0.0, end=2.0, text='Hello World')
         """
 
         if len(self) == 0:
@@ -87,11 +87,18 @@ class TimedList(list):
 
         text = self.get_text(sep)
         probability = sum(word.probability for word in self if word.probability) / len(self)
+        if probability==0:
+            probability=None
+
+        speaker= self[0].speaker
+        if not all(word.speaker==speaker for word in self):
+            logger.warning(f"Not all words in the sequence are not from the same speaker: {self}")
+            speaker=-1
 
         start = offset + self[0].start
         end = offset + self[-1].end
 
-        return TimedText(start, end, text, probability=probability)
+        return TimedText(start, end, text, probability=probability, speaker=speaker)
 
     
     def get_text(self,sep: Optional[str] = None) -> str:
@@ -132,8 +139,8 @@ class TimedList(list):
         Example:
             >>> sequence = TimedList([TimedText(0.0, 1.0, "Hello"), TimedText(1.0, 2.0, "World")])
             >>> sequence.shift(1.0)
-            >>> sequence
-            [TimedText(start=1.0, end=2.0, text='Hello'), TimedText(start=2.0, end=3.0, text='World')]
+            >>> sequence == [TimedText(start=1.0, end=2.0, text='Hello'), TimedText(start=2.0, end=3.0, text='World')]
+            True
         """
         for segment in self:
             segment.shift(shift)
@@ -176,6 +183,57 @@ class TimedList(list):
             first= self.sep.join((self[0],self[1])),
             last= self.sep.join((self[-2],self[-1]))
         )
+
+    def __getitem__(self, index: int) -> TimedText:
+        if isinstance(index, slice):
+            return TimedList(super().__getitem__(index), sep=self.sep)
+        else:
+            return super().__getitem__(index)
+
+    def split_at(self, time: float, edge_word_goes_left: bool) -> Tuple['TimedList', 'TimedList']:
+        """
+        Split the sequence at a given time. 
+        Assuming time is in the middle of a word, the flag edge_word_goes_left decides which side the word goes to.
+        
+        Returns a tuple of two TimedLists.
+
+        Example:
+            >>> greeting = TimedList([TimedText(0.0, 1.0, "Hello"), TimedText(1.0, 2.0, "all"), TimedText(2.0, 3.0, "Together!")])
+            >>> before,after= greeting.split_at(1.5, edge_word_goes_left=True)
+            >>> before.get_text()
+            'Hello all'
+            >>> before,after= greeting.split_at(1.5, edge_word_goes_left=False)
+            >>> before.get_text()
+            'Hello'
+        """
+        # word at i goes to the right list
+        if edge_word_goes_left:
+            # find the first word that starts after the time
+            for i, word in enumerate(self):
+                if word.start >= time:
+                    break
+            else:
+                return self, TimedList([])
+
+           
+            
+            
+        else: # edge_word_goes_right
+            # find the first word that ends after the time
+            # word at i goes to the right list
+            for i, word in enumerate(self):
+                if word.end > time:
+                    break
+            else:
+                return self, TimedList([])
+
+        return self[:i], self[i:]
+
+        
+
+
+
+        
 
 
     def split_to_sentences(self, sentence_splitter: Optional[Callable[[str], List[str]] | Callable[[List[str]], List[str]]] = None) -> 'TimedList':
@@ -223,3 +281,7 @@ class TimedList(list):
                     sentences.append(sent_tokens.concatenate())
             return sentences
 
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod(verbose=True)
