@@ -252,13 +252,13 @@ class TimedList(list):
             full_text = self.get_text()
 
             try:
-                sentence_texts = self.tokenize([full_text])
-            except Exception as e:
-                # Some tokenizers (e.g., MosesSentenceSplitter) expect a list input.
+                # most tokenizers (e.g., MosesSentenceSplitter) expect a list input.
+                sentence_texts = sentence_splitter([full_text])
+            except Exception as e:   
                 try:
-                    sentence_texts = self.tokenize(full_text)
+                    sentence_texts = sentence_splitter(full_text)
                 except Exception as e2:
-                    raise ValueError("Tokenization failed") from e2
+                    raise ValueError("Tokenization failed") from e
 
             # Match output of sentence splitter to the input tokens
             sentences: TimedList = TimedList([])
