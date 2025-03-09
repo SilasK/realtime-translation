@@ -109,6 +109,28 @@
             margin-top: 20px;
         }
 
+        #resetButton {
+            display: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid #ddd;
+            background-color: white;
+            cursor: pointer;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.2s ease;
+            margin-left: 10px;
+        }
+
+        #resetButton:hover {
+            background-color: #f3f3f3;
+            border-color: #ccc;
+        }
+
+        #resetButton:active {
+            transform: scale(0.95);
+        }
+
         .settings {
             display: flex;
             flex-direction: column;
@@ -265,6 +287,7 @@
                 <div class="timer">00:00</div>
             </div>
         </button>
+        <button id="resetButton">Reset Transcript</button>
         <div class="settings">
             <div>
                 <label for="chunkSelector">Chunk size (ms):</label>
@@ -314,6 +337,7 @@
         const websocketInput = document.getElementById("websocketInput");
         const linesTranscriptDiv = document.getElementById("linesTranscript");
         const timerElement = document.querySelector(".timer");
+        const resetButton = document.getElementById("resetButton");
 
         chunkSelector.addEventListener("change", () => {
             chunkDuration = parseInt(chunkSelector.value);
@@ -543,7 +567,6 @@
 
         async function toggleRecording() {
             if (!isRecording) {
-                linesTranscriptDiv.innerHTML = "";
                 try {
                     await setupWebSocket();
                     await startRecording();
@@ -559,7 +582,17 @@
         function updateUI() {
             recordButton.classList.toggle("recording", isRecording);
             statusText.textContent = isRecording ? "Recording..." : "Click to start transcription";
+            
+            // Show reset button only when there's transcript content and not recording
+            const hasTranscript = linesTranscriptDiv.innerHTML.trim() !== "";
+            resetButton.style.display = (!isRecording && hasTranscript) ? "block" : "none";
         }
+
+        // Reset button click handler
+        resetButton.addEventListener("click", () => {
+            linesTranscriptDiv.innerHTML = "";
+            updateUI();
+        });
 
         recordButton.addEventListener("click", toggleRecording);
     </script>
