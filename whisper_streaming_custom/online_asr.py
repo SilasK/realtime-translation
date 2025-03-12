@@ -207,14 +207,19 @@ class OnlineASRProcessor:
         logger.debug(f">>>> COMPLETE NOW: {committed_tokens.get_text()}")
         logger.debug(f"INCOMPLETE: {self.transcript_buffer.buffer.get_text()}")
 
+        # If we have completed sentences, chunk the audio buffer
         if committed_tokens and self.buffer_trimming_way == "sentence":
-            if len(self.audio_buffer) / self.SAMPLING_RATE > self.buffer_trimming_sec:
-                self.chunk_completed_sentence()
+            self.chunk_completed_sentence()
 
-        s = self.buffer_trimming_sec if self.buffer_trimming_way == "segment" else 30
-        if len(self.audio_buffer) / self.SAMPLING_RATE > s:
+        if len(self.audio_buffer) / self.SAMPLING_RATE > self.buffer_trimming_sec:
+
+            if self.buffer_trimming_way == "sentence":
+                logger.warning(f"Chunking after {self.buffer_trimming_sec}s even if no completed sentences!")
+            else:
+                logger.debug("Chunking segment")
+
             self.chunk_completed_segment(res)
-            logger.debug("Chunking segment")
+            
         logger.debug(
             f"Length of audio buffer now: {len(self.audio_buffer)/self.SAMPLING_RATE:.2f} seconds"
         )
@@ -222,7 +227,7 @@ class OnlineASRProcessor:
 
     def chunk_completed_sentence(self):
         """
-        If the committed tokens form at least two sentences, chunk the audio
+        If the committed tokens form at least sentences, chunk the audio
         buffer at the end time of the ultimate sentence.
         """
 
@@ -233,7 +238,7 @@ class OnlineASRProcessor:
         sentences = self.committed.split_to_sentences(self.tokenize)
         for sentence in sentences:
             logger.debug(f"\tSentence: {sentence}")
-        if len(sentences) < 2:
+        if len(sentences) <= 1:
             return
         # Keep the last sentences.
         chunk_time = sentences[-1].end
