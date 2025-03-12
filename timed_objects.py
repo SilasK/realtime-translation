@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, List, Callable, Tuple
+from typing import Optional, Union, List, Callable, Tuple
 from itertools import groupby
 
 import logging
@@ -150,7 +150,7 @@ class TimedList(list):
         for segment in self:
             segment.shift(shift)
 
-    def extend(self, other: List[TimedText] | 'TimedList'):
+    def extend(self, other: Union[List[TimedText], 'TimedList']):
         """
         Extend the sequence with another sequence of TimedText instances.
         """
@@ -202,7 +202,7 @@ class TimedList(list):
         else:
             return super().__getitem__(index)
 
-    def __add__(self, other: List[TimedText] | 'TimedList') -> 'TimedList':
+    def __add__(self, other: Union[List[TimedText], 'TimedList']) -> 'TimedList':
         """
         Add two TimedLists together.
         """
@@ -271,7 +271,7 @@ class TimedList(list):
 
 
 
-    def split_to_sentences(self, sentence_splitter: Optional[Callable[[str], List[str]] | Callable[[List[str]], List[str]]] = None) -> List['TimedList']:
+    def split_to_sentences(self, sentence_splitter: Optional[Union[Callable[[str], List[str]], Callable[[List[str]], List[str]]]] = None) -> List['TimedList']:
             """
             Converts a list of tokens to a list of Sentence objects using the provided
             sentence tokenizer.
@@ -299,7 +299,7 @@ class TimedList(list):
 
 
 
-def run_sentence_splitter(input_sentences: 'TimedList',sentence_splitter: Callable[[str], List[str]] | Callable[[List[str]], List[str]]) -> List['TimedList']:
+def run_sentence_splitter(input_sentences: 'TimedList',sentence_splitter: Union[Callable[[str], List[str]], Callable[[List[str]], List[str]]]) -> List['TimedList']:
     """
     Run the sentence splitter on the transcript.
     """
