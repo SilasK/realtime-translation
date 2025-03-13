@@ -241,7 +241,7 @@ class OnlineASRProcessor:
         if len(sentences) <= 1:
             return
         # Keep the last sentences.
-        chunk_time = sentences[-1].end
+        chunk_time = sentences[-1][-1].end
         logger.debug(f"--- Sentence chunked at {chunk_time:.2f}")
         self.chunk_at(chunk_time)
 
