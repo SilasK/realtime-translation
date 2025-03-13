@@ -77,7 +77,7 @@ def add_shared_args(parser):
     parser.add_argument(
         "--model",
         type=str,
-        default="large-v3-turbo",
+        default="tiny",
         choices="tiny.en,tiny,base.en,base,small.en,small,medium.en,medium,large-v1,large-v2,large-v3,large,large-v3-turbo".split(
             ","
         ),
@@ -128,7 +128,7 @@ def add_shared_args(parser):
     parser.add_argument(
         "--vad",
         action="store_true",
-        default=False,
+        default=True,
         help="Use VAD = voice activity detection, with the default parameters.",
     )
     parser.add_argument(
