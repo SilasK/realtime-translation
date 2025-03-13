@@ -10,7 +10,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from whisper_streaming_custom.whisper_online import backend_factory, online_factory, add_shared_args
+
+from whisper_streaming_custom.whisper_online import backend_factory, online_factory, add_shared_args,warmup_asr
 from timed_objects import ASRToken, TimedList
 
 import math
@@ -211,6 +212,7 @@ async def lifespan(app: FastAPI):
     global asr, tokenizer, diarization
     if args.transcription:
         asr, tokenizer = backend_factory(args)
+        warmup_asr(asr, args.warmup_file)
     else:
         asr, tokenizer = None, None
 

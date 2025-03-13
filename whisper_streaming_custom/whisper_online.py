@@ -227,11 +227,34 @@ def asr_factory(args, logfile=sys.stderr):
     online = online_factory(args, asr, tokenizer, logfile=logfile)
     return asr, online
 
-def set_logging(args, logger, others=[]):
-    logging.basicConfig(format="%(levelname)s\t%(message)s")  # format='%(name)s
-    logger.setLevel(args.log_level)
+def warmup_asr(asr, warmup_file=None):
+    """
+    Warmup the ASR model by transcribing a short audio file.
+    """
+    if warmup_file:
+        warmup_file = warmup_file
+    else:
+        # Download JFK sample if not already present
+        import tempfile
+        import os
 
-    for other in others:
-        logging.getLogger(other).setLevel(args.log_level)
+        
+        jfk_url = "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav"
+        temp_dir = tempfile.gettempdir()
+        warmup_file = os.path.join(temp_dir, "whisper_warmup_jfk.wav")
+        
+        if not os.path.exists(warmup_file):
+            logger.debug(f"Downloading warmup file from {jfk_url}")
+            import urllib.request
+            urllib.request.urlretrieve(jfk_url, warmup_file)
 
+
+    # Load the warmup file
+    audio, sr = librosa.load(warmup_file, sr=16000)
+
+    # Process the audio
+    asr.transcribe(audio)
+    
+
+    logger.info("Whisper is warmed up")
 
