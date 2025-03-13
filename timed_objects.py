@@ -12,6 +12,7 @@ class TimedText:
     text: Optional[str] = ''
     speaker: Optional[int] = -1
     probability: Optional[float] = None
+    is_dummy: Optional[bool] = False
 
     def shift(self, offset: float) -> None:
         self.start += offset

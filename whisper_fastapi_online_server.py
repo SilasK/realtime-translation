@@ -60,7 +60,7 @@ parser.add_argument(
 parser.add_argument(
     "--confidence-validation",
     type=bool,
-    default=True,
+    default=False,
     help="Accelerates validation of tokens using confidence scores. Transcription will be faster but punctuation might be less accurate.",
 )
 
@@ -131,9 +131,10 @@ class SharedState:
             current_time = time() - self.beg_loop
             dummy_token = ASRToken(
                 start=current_time,
-                end=current_time + 0.5,
-                text="",
-                speaker=-1
+                end=current_time + 1,
+                text=".",
+                speaker=-1,
+                is_dummy=True
             )
             self.tokens.append(dummy_token)
             
@@ -367,14 +368,13 @@ async def results_formatter(shared_state, websocket):
 
             
             # If diarization is enabled but no transcription, add dummy tokens periodically
-            if not tokens and not args.transcription and args.diarization:
+            if (not tokens or tokens[-1].is_dummy) and not args.transcription and args.diarization:
                 await shared_state.add_dummy_token()
-                # Re-fetch tokens after adding dummy
+                sleep(0.5)
                 state = await shared_state.get_current_state()
                 tokens = state["tokens"]
-            
             # Process tokens to create response
-            previous_speaker = -10
+            previous_speaker = -1
             lines = []
             last_end_diarized = 0
             undiarized_text = []
